@@ -6,7 +6,7 @@ from Blob import Blob
 WIDTH, HEIGHT = 800, 600
 NUM_BLOBS = 100
 BLOB_RADIUS = 10
-COLOR_SHIFT_STRENGTH = 1  # 0 = no color change, 1 = max color change
+COLOR_SHIFT_STRENGTH = 0.5  # 0 = no color change, 1 = max color change
 
 # Init pygame and window
 pygame.init()
@@ -15,6 +15,10 @@ clock = pygame.time.Clock()
 
 # Create blobs
 blobs = [Blob(BLOB_RADIUS, WIDTH, HEIGHT) for _ in range(NUM_BLOBS)]
+
+# Background color variables
+background_color = [20, 20, 30]
+background_shift = [random.choice([-1, 1]) for _ in range(3)]
 
 def average_color(blob):
     """Return the average color (as a list of 3 ints) of all sub-blobs in a blob."""
@@ -43,7 +47,14 @@ def are_attracted(blob1, blob2, threshold=80):
 
 running = True
 while running:
-    screen.fill((20, 20, 30))  # dark background
+    # Slowly shift background color
+    for i in range(3):
+        background_color[i] += background_shift[i] * random.uniform(0.1, 0.5)
+        if background_color[i] < 10 or background_color[i] > 80:
+            background_shift[i] *= -1
+        background_color[i] = max(10, min(80, background_color[i]))
+    screen.fill(tuple(int(c) for c in background_color))
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
