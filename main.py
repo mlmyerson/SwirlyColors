@@ -15,16 +15,19 @@ clock = pygame.time.Clock()
 # Create blobs
 blobs = [Blob(BLOB_RADIUS, WIDTH, HEIGHT) for _ in range(NUM_BLOBS)]
 
-def are_attracted(blob1, blob2):
+def are_attracted(blob1, blob2, threshold=80):
     # If already bonded, always attract
     if id(blob2) in blob1.bonded or id(blob1) in blob2.bonded:
         return True
-    # Otherwise, coin flip and record bond if attracted
-    attract = random.choice([True, False])
-    if attract:
+    # Attract if colors are similar
+    if color_distance(blob1.color, blob2.color) < threshold:
         blob1.bonded.add(id(blob2))
         blob2.bonded.add(id(blob1))
-    return attract
+        return True
+    return False
+
+def color_distance(c1, c2):
+    return sum((a - b) ** 2 for a, b in zip(c1, c2)) ** 0.5
 
 running = True
 while running:
