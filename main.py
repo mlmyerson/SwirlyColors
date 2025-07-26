@@ -6,6 +6,7 @@ from Blob import Blob
 WIDTH, HEIGHT = 800, 600
 NUM_BLOBS = 100
 BLOB_RADIUS = 10
+COLOR_SHIFT_STRENGTH = 1  # 0 = no color change, 1 = max color change
 
 # Init pygame and window
 pygame.init()
@@ -51,8 +52,8 @@ while running:
                 if blobs:
                     blob = random.choice(blobs)
                     # Change velocity
-                    blob.vx = random.uniform(-2, 2)
-                    blob.vy = random.uniform(-2, 2)
+                    blob.vx = random.uniform(2, 5)
+                    blob.vy = random.uniform(2, 5)
                     # Change color of all sub-blobs
                     new_sub_blobs = []
                     for x, y, r, _ in blob.sub_blobs:
@@ -81,7 +82,7 @@ while running:
             blob2 = blobs[j]
             if blob.is_colliding(blob2):
                 attract = are_attracted(blob, blob2)
-                merged_blob = blob.interact(blob2, attract=attract)
+                merged_blob = blob.interact(blob2, attract=attract, color_shift_strength=COLOR_SHIFT_STRENGTH)
                 if merged_blob:
                     merged_indices.add(i)
                     merged_indices.add(j)
@@ -95,7 +96,7 @@ while running:
     # After handling merges, eject outlier sub-blobs
     ejected_blobs = []
     for blob in blobs:
-        ejected_blobs.extend(blob.eject_outlier_subblobs(color_threshold=100))
+        ejected_blobs.extend(blob.eject_outlier_subblobs(color_threshold=100, color_shift_strength=COLOR_SHIFT_STRENGTH))
     blobs.extend(ejected_blobs)
 
     # Now split blobs if they're disconnected

@@ -51,7 +51,7 @@ class Blob:
                     return True
         return False
 
-    def interact(self, other, attract=True):
+    def interact(self, other, attract=True, color_shift_strength=0.5):
         collided = False
         new_self_sub_blobs = list(self.sub_blobs)
         new_other_sub_blobs = list(other.sub_blobs)
@@ -60,21 +60,21 @@ class Blob:
                 if math.hypot(x1 - x2, y1 - y2) < r1 + r2:
                     collided = True
                     def shift_color(color, vx, vy):
-                        shift = int((abs(vx) + abs(vy)) * 2)
+                        base_shift = (abs(vx) + abs(vy)) * 2
+                        shift = max(1, int(base_shift * color_shift_strength))
                         return [
-                            max(0, min(255, c + random.choice([-shift, shift])))
+                            (c + random.choice([-shift, shift])) % 256
                             for c in color
                         ]
                     if attract:
-                        # Shift only the colliding sub-blobs' colors randomly
                         new_self_sub_blobs[i] = (x1, y1, r1, shift_color(color1, self.vx, self.vy))
                         new_other_sub_blobs[j] = (x2, y2, r2, shift_color(color2, other.vx, other.vy))
                     else:
-                        # Shift colors away from each other (color "bounce")
                         def bounce_color(c1, c2, vx, vy):
-                            shift = int((abs(vx) + abs(vy)) * 2)
+                            base_shift = (abs(vx) + abs(vy)) * 2
+                            shift = max(1, int(base_shift * color_shift_strength))
                             return [
-                                max(0, min(255, c1[k] + shift if c1[k] > c2[k] else c1[k] - shift))
+                                (c1[k] + shift) % 256 if c1[k] > c2[k] else (c1[k] - shift) % 256
                                 for k in range(3)
                             ]
                         new_self_sub_blobs[i] = (x1, y1, r1, bounce_color(color1, color2, self.vx, self.vy))
@@ -112,7 +112,7 @@ class Blob:
                 return None
         return None
 
-    def eject_outlier_subblobs(self, color_threshold=100):
+    def eject_outlier_subblobs(self, color_threshold=100, color_shift_strength=0.5):
         """Return a list of new Blobs for ejected sub-blobs, and update self.sub_blobs."""
         if len(self.sub_blobs) <= 1:
             return []
