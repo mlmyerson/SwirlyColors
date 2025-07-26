@@ -15,19 +15,30 @@ clock = pygame.time.Clock()
 # Create blobs
 blobs = [Blob(BLOB_RADIUS, WIDTH, HEIGHT) for _ in range(NUM_BLOBS)]
 
+def average_color(blob):
+    """Return the average color (as a list of 3 ints) of all sub-blobs in a blob."""
+    n = len(blob.sub_blobs)
+    if n == 0:
+        return [0, 0, 0]
+    sums = [0, 0, 0]
+    for _, _, _, color in blob.sub_blobs:
+        for i in range(3):
+            sums[i] += color[i]
+    return [int(s / n) for s in sums]
+
+def color_distance(c1, c2):
+    return sum((a - b) ** 2 for a, b in zip(c1, c2)) ** 0.5
+
 def are_attracted(blob1, blob2, threshold=80):
     # If already bonded, always attract
     if id(blob2) in blob1.bonded or id(blob1) in blob2.bonded:
         return True
-    # Attract if colors are similar
-    if color_distance(blob1.color, blob2.color) < threshold:
+    # Attract if average colors are similar
+    if color_distance(average_color(blob1), average_color(blob2)) < threshold:
         blob1.bonded.add(id(blob2))
         blob2.bonded.add(id(blob1))
         return True
     return False
-
-def color_distance(c1, c2):
-    return sum((a - b) ** 2 for a, b in zip(c1, c2)) ** 0.5
 
 running = True
 while running:
@@ -63,6 +74,18 @@ while running:
     # Remove merged blobs and add new ones
     blobs = [b for idx, b in enumerate(blobs) if idx not in merged_indices]
     blobs.extend(new_blobs)
+
+    # After handling merges, eject outlier sub-blobs
+    ejected_blobs = []
+    for blob in blobs:
+        ejected_blobs.extend(blob.eject_outlier_subblobs(color_threshold=100))
+    blobs.extend(ejected_blobs)
+
+    # Now split blobs if they're disconnected
+    split_blobs = []
+    for blob in blobs:
+        split_blobs.extend(blob.split_if_disconnected())
+    blobs = split_blobs
 
     pygame.display.flip()
     clock.tick(60)
