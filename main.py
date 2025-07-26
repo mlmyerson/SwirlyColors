@@ -4,9 +4,10 @@ from Blob import Blob
 
 # Constants
 WIDTH, HEIGHT = 800, 600
-NUM_BLOBS = 100
-BLOB_RADIUS = 10
+NUM_BLOBS = 1000
+BLOB_RADIUS = 5
 COLOR_SHIFT_STRENGTH = 0.5  # 0 = no color change, 1 = max color change
+GRID_SIZE = 40  # Adjust for your blob size and screen
 
 # Init pygame and window
 pygame.init()
@@ -45,6 +46,9 @@ def are_attracted(blob1, blob2, threshold=80):
         return True
     return False
 
+def get_grid_pos(x, y):
+    return int(x // GRID_SIZE), int(y // GRID_SIZE)
+
 running = True
 while running:
     # Slowly shift background color
@@ -63,8 +67,8 @@ while running:
                 if blobs:
                     blob = random.choice(blobs)
                     # Change velocity
-                    blob.vx = random.uniform(2, 5)
-                    blob.vy = random.uniform(2, 5)
+                    blob.vx = random.uniform(2, 20)
+                    blob.vy = random.uniform(2, 20)
                     # Change color of all sub-blobs
                     new_sub_blobs = []
                     for x, y, r, _ in blob.sub_blobs:
@@ -81,24 +85,40 @@ while running:
         blob.move()
         blob.draw(screen)
 
+    # --- Build grid for this frame ---
+    grid = {}
+    for idx, blob in enumerate(blobs):
+        for x, y, r, _ in blob.sub_blobs:
+            gx, gy = get_grid_pos(x, y)
+            grid.setdefault((gx, gy), set()).add(idx)
+    # ---------------------------------
+
     # Handle interactions and merging
     merged_indices = set()
     new_blobs = []
     for i, blob in enumerate(blobs):
         if i in merged_indices:
             continue
-        for j in range(i + 1, len(blobs)):
-            if j in merged_indices:
-                continue
-            blob2 = blobs[j]
-            if blob.is_colliding(blob2):
-                attract = are_attracted(blob, blob2)
-                merged_blob = blob.interact(blob2, attract=attract, color_shift_strength=COLOR_SHIFT_STRENGTH)
-                if merged_blob:
-                    merged_indices.add(i)
-                    merged_indices.add(j)
-                    new_blobs.append(merged_blob)
-                    break  # blob i is merged, skip further checks
+        checked = set()
+        for x, y, r, _ in blob.sub_blobs:
+            gx, gy = get_grid_pos(x, y)
+            for dx in [-1, 0, 1]:
+                for dy in [-1, 0, 1]:
+                    for j in grid.get((gx + dx, gy + dy), []):
+                        if j <= i or j in merged_indices or j in checked:
+                            continue
+                        if j >= len(blobs):  # <-- Add this guard!
+                            continue
+                        blob2 = blobs[j]
+                        if blob.is_colliding(blob2):
+                            attract = are_attracted(blob, blob2)
+                            merged_blob = blob.interact(blob2, attract=attract, color_shift_strength=COLOR_SHIFT_STRENGTH)
+                            if merged_blob:
+                                merged_indices.add(i)
+                                merged_indices.add(j)
+                                new_blobs.append(merged_blob)
+                                break
+                        checked.add(j)
 
     # Remove merged blobs and add new ones
     blobs = [b for idx, b in enumerate(blobs) if idx not in merged_indices]
