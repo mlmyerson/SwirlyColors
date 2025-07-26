@@ -46,6 +46,23 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        elif event.type == pygame.KEYDOWN:
+            if pygame.K_a <= event.key <= pygame.K_z:
+                if blobs:
+                    blob = random.choice(blobs)
+                    # Change velocity
+                    blob.vx = random.uniform(-2, 2)
+                    blob.vy = random.uniform(-2, 2)
+                    # Change color of all sub-blobs
+                    new_sub_blobs = []
+                    for x, y, r, _ in blob.sub_blobs:
+                        new_color = [
+                            random.randint(50, 255),
+                            random.randint(50, 255),
+                            random.randint(50, 255)
+                        ]
+                        new_sub_blobs.append((x, y, r, new_color))
+                    blob.sub_blobs = new_sub_blobs
 
     # Move and draw all blobs
     for blob in blobs:
