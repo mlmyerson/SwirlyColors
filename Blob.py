@@ -2,6 +2,7 @@
 import random
 import pygame
 import math
+import numpy as np
 
 class Blob:
     def __init__(self, radius, width, height, sub_blobs=None, vx=None, vy=None, bonded=None):
@@ -27,18 +28,36 @@ class Blob:
         self.bonded = set() if bonded is None else set(bonded)
 
     def move(self):
-        # Move all sub-blobs by the same velocity
-        self.sub_blobs = [
-            (x + self.vx, y + self.vy, r, color) for (x, y, r, color) in self.sub_blobs
-        ]
-        # Bounce if any sub-blob hits a wall
-        for x, y, r, color in self.sub_blobs:
+        if len(self.sub_blobs) == 0:
+            return
+        arr = np.array([[x, y, r] for x, y, r, _ in self.sub_blobs])
+        dx = np.full(len(arr), self.vx)
+        dy = np.full(len(arr), self.vy)
+        # Repulsion
+        for i in range(len(arr)):
+            diff = arr[i, :2] - arr[:, :2]
+            dist = np.linalg.norm(diff, axis=1)
+            overlap = (arr[i, 2] + arr[:, 2]) - dist
+            mask = (overlap > 0) & (dist > 0)
+            if np.any(mask):
+                repel = diff[mask] / dist[mask][:, None]
+                repel_sum = np.sum(repel * overlap[mask][:, None], axis=0)
+                dx[i] += repel_sum[0] * 0.05
+                dy[i] += repel_sum[1] * 0.05
+        # Add random jiggle
+        arr[:, 0] += dx + np.random.uniform(-0.1, 0.1, size=len(arr))
+        arr[:, 1] += dy + np.random.uniform(-0.1, 0.1, size=len(arr))
+        # Clamp to screen and bounce
+        for i in range(len(arr)):
+            x, y, r = arr[i]
             if x < r or x > self.width - r:
                 self.vx *= -1
-                break
+                arr[i, 0] = np.clip(x, r, self.width - r)
             if y < r or y > self.height - r:
                 self.vy *= -1
-                break
+                arr[i, 1] = np.clip(y, r, self.height - r)
+        # Update sub_blobs
+        self.sub_blobs = [(arr[i, 0], arr[i, 1], arr[i, 2], self.sub_blobs[i][3]) for i in range(len(arr))]
 
     def draw(self, surface):
         for x, y, r, color in self.sub_blobs:
@@ -200,16 +219,27 @@ class Blob:
         return new_blobs
 
     def bounding_circle(self):
-        """Return (cx, cy, radius) for a circle that bounds all sub-blobs."""
+        """Return (cx, cy, radius) for a circle that bounds all sub-blobs (NumPy version)."""
         if not self.sub_blobs:
             return (0, 0, 0)
-        xs = [x for x, y, r, c in self.sub_blobs]
-        ys = [y for x, y, r, c in self.sub_blobs]
-        rs = [r for x, y, r, c in self.sub_blobs]
-        cx = sum(xs) / len(xs)
-        cy = sum(ys) / len(ys)
-        max_r = max(math.hypot(x - cx, y - cy) + r for x, y, r, c in self.sub_blobs)
+        arr = np.array([[x, y, r] for x, y, r, _ in self.sub_blobs])
+        cx = np.mean(arr[:, 0])
+        cy = np.mean(arr[:, 1])
+        dists = np.sqrt((arr[:, 0] - cx) ** 2 + (arr[:, 1] - cy) ** 2) + arr[:, 2]
+        max_r = np.max(dists)
         return (cx, cy, max_r)
 
 def color_distance(c1, c2):
     return sum((a - b) ** 2 for a, b in zip(c1, c2)) ** 0.5
+
+def any_subblob_collision(blob1, blob2):
+    """Return True if any sub-blobs in blob1 and blob2 overlap (NumPy version)."""
+    if not blob1.sub_blobs or not blob2.sub_blobs:
+        return False
+    arr1 = np.array([[x, y, r] for x, y, r, _ in blob1.sub_blobs])
+    arr2 = np.array([[x, y, r] for x, y, r, _ in blob2.sub_blobs])
+    dx = arr1[:, None, 0] - arr2[None, :, 0]
+    dy = arr1[:, None, 1] - arr2[None, :, 1]
+    dist = np.sqrt(dx ** 2 + dy ** 2)
+    min_dist = arr1[:, None, 2] + arr2[None, :, 2]
+    return np.any(dist < min_dist)
