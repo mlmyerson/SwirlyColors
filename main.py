@@ -142,6 +142,58 @@ while running:
             split_blobs.extend(blob.split_if_disconnected())
         blobs = split_blobs
 
+    # Remove blobs with no sub-blobs
+    blobs = [b for b in blobs if len(b.sub_blobs) > 0]
+
+    # After all merging/splitting logic, separate overlapping blobs
+    for i, blob1 in enumerate(blobs):
+        for j in range(i + 1, len(blobs)):
+            blob2 = blobs[j]
+            x1, y1, r1, _ = blob1.sub_blobs[0]
+            x2, y2, r2, _ = blob2.sub_blobs[0]
+            dx = x2 - x1
+            dy = y2 - y1
+            dist = (dx ** 2 + dy ** 2) ** 0.5
+            min_dist = r1 + r2
+            if dist < min_dist and dist > 0:
+                overlap = min_dist - dist
+                move_x = (dx / dist) * (overlap / 2)
+                move_y = (dy / dist) * (overlap / 2)
+                blob1.sub_blobs = [
+                    (x - move_x, y - move_y, r, color)
+                    for (x, y, r, color) in blob1.sub_blobs
+                ]
+                blob2.sub_blobs = [
+                    (x + move_x, y + move_y, r, color)
+                    for (x, y, r, color) in blob2.sub_blobs
+                ]
+
+    # Only separate single-sub-blob blobs from larger blobs to prevent them getting stuck
+    for blob1 in blobs:
+        if len(blob1.sub_blobs) == 1:
+            x1, y1, r1, _ = blob1.sub_blobs[0]
+            for blob2 in blobs:
+                if blob1 is blob2 or len(blob2.sub_blobs) < 2:
+                    continue
+                # Check if single blob is inside any sub-blob of the larger blob
+                for x2, y2, r2, _ in blob2.sub_blobs:
+                    dx = x1 - x2
+                    dy = y1 - y2
+                    dist = (dx ** 2 + dy ** 2) ** 0.5
+                    min_dist = r1 + r2
+                    if dist < min_dist and dist > 0:
+                        # Move the single-sub-blob blob out of the larger blob
+                        overlap = min_dist - dist
+                        move_x = (dx / dist) * overlap if dist != 0 else overlap
+                        move_y = (dy / dist) * overlap if dist != 0 else overlap
+                        blob1.sub_blobs = [(
+                            x1 + move_x,
+                            y1 + move_y,
+                            r1,
+                            blob1.sub_blobs[0][3]
+                        )]
+                        break
+
     pygame.display.flip()
     clock.tick(60)
 
