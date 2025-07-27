@@ -14,8 +14,8 @@ clock = pygame.time.Clock()
 NUM_BLOBS = 200
 BLOB_RADIUS = 10
 COLOR_SHIFT_STRENGTH = 0.3  # 0 = no color change, 1 = max color change
+COLOR_SIMILARITY = 0.3  # 0 = only very similar colors merge, 1 = any color merges
 GRID_SIZE = 10 # Adjust for your blob size and screen
-COLOR_SIMILARITY = 0.7 # 0 = only very similar colors merge, 1 = any color merges
 
 # Create blobs
 blobs = [Blob(BLOB_RADIUS, WIDTH, HEIGHT) for _ in range(NUM_BLOBS)]
@@ -42,10 +42,8 @@ def are_attracted(blob1, blob2, similarity=COLOR_SIMILARITY):
     # Max possible color distance in RGB is sqrt(3*255^2) ≈ 441.67
     max_dist = (3 * 255 ** 2) ** 0.5
     threshold = similarity * max_dist
-    # If already bonded, always attract
     if id(blob2) in blob1.bonded or id(blob1) in blob2.bonded:
         return True
-    # Attract if average colors are similar
     if color_distance(average_color(blob1), average_color(blob2)) < threshold:
         blob1.bonded.add(id(blob2))
         blob2.bonded.add(id(blob1))
