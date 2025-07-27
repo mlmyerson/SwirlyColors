@@ -49,8 +49,10 @@ def are_attracted(blob1, blob2, threshold=80):
 def get_grid_pos(x, y):
     return int(x // GRID_SIZE), int(y // GRID_SIZE)
 
+frame_count = 0
 running = True
 while running:
+    frame_count += 1
     # Slowly shift background color
     for i in range(3):
         background_color[i] += background_shift[i] * random.uniform(0.1, 0.5)
@@ -63,7 +65,9 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         elif event.type == pygame.KEYDOWN:
-            if pygame.K_a <= event.key <= pygame.K_z:
+            if event.key == pygame.K_ESCAPE:
+                running = False
+            elif pygame.K_a <= event.key <= pygame.K_z:
                 if blobs:
                     blob = random.choice(blobs)
                     # Change velocity
@@ -93,48 +97,50 @@ while running:
             grid.setdefault((gx, gy), set()).add(idx)
     # ---------------------------------
 
-    # Handle interactions and merging
-    merged_indices = set()
-    new_blobs = []
-    for i, blob in enumerate(blobs):
-        if i in merged_indices:
-            continue
-        checked = set()
-        for x, y, r, _ in blob.sub_blobs:
-            gx, gy = get_grid_pos(x, y)
-            for dx in [-1, 0, 1]:
-                for dy in [-1, 0, 1]:
-                    for j in grid.get((gx + dx, gy + dy), []):
-                        if j <= i or j in merged_indices or j in checked:
-                            continue
-                        if j >= len(blobs):  # <-- Add this guard!
-                            continue
-                        blob2 = blobs[j]
-                        if blob.is_colliding(blob2):
-                            attract = are_attracted(blob, blob2)
-                            merged_blob = blob.interact(blob2, attract=attract, color_shift_strength=COLOR_SHIFT_STRENGTH)
-                            if merged_blob:
-                                merged_indices.add(i)
-                                merged_indices.add(j)
-                                new_blobs.append(merged_blob)
-                                break
-                        checked.add(j)
+    # Only handle collisions/merging and splitting every 10 frames
+    if frame_count % 10 == 0:
+        # Handle interactions and merging
+        merged_indices = set()
+        new_blobs = []
+        for i, blob in enumerate(blobs):
+            if i in merged_indices:
+                continue
+            checked = set()
+            for x, y, r, _ in blob.sub_blobs:
+                gx, gy = get_grid_pos(x, y)
+                for dx in [-1, 0, 1]:
+                    for dy in [-1, 0, 1]:
+                        for j in grid.get((gx + dx, gy + dy), []):
+                            if j <= i or j in merged_indices or j in checked:
+                                continue
+                            if j >= len(blobs):
+                                continue
+                            blob2 = blobs[j]
+                            if blob.is_colliding(blob2):
+                                attract = are_attracted(blob, blob2)
+                                merged_blob = blob.interact(blob2, attract=attract, color_shift_strength=COLOR_SHIFT_STRENGTH)
+                                if merged_blob:
+                                    merged_indices.add(i)
+                                    merged_indices.add(j)
+                                    new_blobs.append(merged_blob)
+                                    break
+                            checked.add(j)
 
-    # Remove merged blobs and add new ones
-    blobs = [b for idx, b in enumerate(blobs) if idx not in merged_indices]
-    blobs.extend(new_blobs)
+        # Remove merged blobs and add new ones
+        blobs = [b for idx, b in enumerate(blobs) if idx not in merged_indices]
+        blobs.extend(new_blobs)
 
-    # After handling merges, eject outlier sub-blobs
-    ejected_blobs = []
-    for blob in blobs:
-        ejected_blobs.extend(blob.eject_outlier_subblobs(color_threshold=100, color_shift_strength=COLOR_SHIFT_STRENGTH))
-    blobs.extend(ejected_blobs)
+        # After handling merges, eject outlier sub-blobs
+        ejected_blobs = []
+        for blob in blobs:
+            ejected_blobs.extend(blob.eject_outlier_subblobs(color_threshold=100, color_shift_strength=COLOR_SHIFT_STRENGTH))
+        blobs.extend(ejected_blobs)
 
-    # Now split blobs if they're disconnected
-    split_blobs = []
-    for blob in blobs:
-        split_blobs.extend(blob.split_if_disconnected())
-    blobs = split_blobs
+        # Now split blobs if they're disconnected
+        split_blobs = []
+        for blob in blobs:
+            split_blobs.extend(blob.split_if_disconnected())
+        blobs = split_blobs
 
     pygame.display.flip()
     clock.tick(60)
