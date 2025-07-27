@@ -2,17 +2,17 @@ import pygame
 import random
 from Blob import Blob
 
+pygame.init()
+info = pygame.display.Info()
+WIDTH, HEIGHT = info.current_w, info.current_h
+screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
+clock = pygame.time.Clock()
+
 # Constants
-WIDTH, HEIGHT = 800, 600
-NUM_BLOBS = 1000
-BLOB_RADIUS = 5
+NUM_BLOBS = 100
+BLOB_RADIUS = 10
 COLOR_SHIFT_STRENGTH = 0.5  # 0 = no color change, 1 = max color change
 GRID_SIZE = 40  # Adjust for your blob size and screen
-
-# Init pygame and window
-pygame.init()
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-clock = pygame.time.Clock()
 
 # Create blobs
 blobs = [Blob(BLOB_RADIUS, WIDTH, HEIGHT) for _ in range(NUM_BLOBS)]
