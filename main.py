@@ -1,5 +1,6 @@
 import pygame
 import random
+import math
 from Blob import Blob
 
 pygame.init()
@@ -9,7 +10,7 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
 clock = pygame.time.Clock()
 
 # Constants
-NUM_BLOBS = 100
+NUM_BLOBS = 1000
 BLOB_RADIUS = 10
 COLOR_SHIFT_STRENGTH = 0.5  # 0 = no color change, 1 = max color change
 GRID_SIZE = 40  # Adjust for your blob size and screen
@@ -106,6 +107,7 @@ while running:
             if i in merged_indices:
                 continue
             checked = set()
+            cx1, cy1, br1 = blob.bounding_circle()
             for x, y, r, _ in blob.sub_blobs:
                 gx, gy = get_grid_pos(x, y)
                 for dx in [-1, 0, 1]:
@@ -116,6 +118,12 @@ while running:
                             if j >= len(blobs):
                                 continue
                             blob2 = blobs[j]
+                            # --- Bounding circle pre-check ---
+                            cx2, cy2, br2 = blob2.bounding_circle()
+                            if math.hypot(cx1 - cx2, cy1 - cy2) > br1 + br2:
+                                checked.add(j)
+                                continue  # No possible collision, skip expensive check
+                            # --- End bounding circle pre-check ---
                             if blob.is_colliding(blob2):
                                 attract = are_attracted(blob, blob2)
                                 merged_blob = blob.interact(blob2, attract=attract, color_shift_strength=COLOR_SHIFT_STRENGTH)
@@ -124,7 +132,7 @@ while running:
                                     merged_indices.add(j)
                                     new_blobs.append(merged_blob)
                                     break
-                            checked.add(j)
+                    checked.add(j)
 
         # Remove merged blobs and add new ones
         blobs = [b for idx, b in enumerate(blobs) if idx not in merged_indices]

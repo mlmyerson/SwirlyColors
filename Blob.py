@@ -199,5 +199,17 @@ class Blob:
             )
         return new_blobs
 
+    def bounding_circle(self):
+        """Return (cx, cy, radius) for a circle that bounds all sub-blobs."""
+        if not self.sub_blobs:
+            return (0, 0, 0)
+        xs = [x for x, y, r, c in self.sub_blobs]
+        ys = [y for x, y, r, c in self.sub_blobs]
+        rs = [r for x, y, r, c in self.sub_blobs]
+        cx = sum(xs) / len(xs)
+        cy = sum(ys) / len(ys)
+        max_r = max(math.hypot(x - cx, y - cy) + r for x, y, r, c in self.sub_blobs)
+        return (cx, cy, max_r)
+
 def color_distance(c1, c2):
     return sum((a - b) ** 2 for a, b in zip(c1, c2)) ** 0.5
