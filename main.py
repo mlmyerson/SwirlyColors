@@ -13,8 +13,9 @@ clock = pygame.time.Clock()
 # Constants
 NUM_BLOBS = 200
 BLOB_RADIUS = 10
-COLOR_SHIFT_STRENGTH = 0.5  # 0 = no color change, 1 = max color change
-GRID_SIZE = 40  # Adjust for your blob size and screen
+COLOR_SHIFT_STRENGTH = 0.3  # 0 = no color change, 1 = max color change
+GRID_SIZE = 10 # Adjust for your blob size and screen
+COLOR_SIMILARITY = 0.7 # 0 = only very similar colors merge, 1 = any color merges
 
 # Create blobs
 blobs = [Blob(BLOB_RADIUS, WIDTH, HEIGHT) for _ in range(NUM_BLOBS)]
@@ -37,7 +38,10 @@ def average_color(blob):
 def color_distance(c1, c2):
     return sum((a - b) ** 2 for a, b in zip(c1, c2)) ** 0.5
 
-def are_attracted(blob1, blob2, threshold=80):
+def are_attracted(blob1, blob2, similarity=COLOR_SIMILARITY):
+    # Max possible color distance in RGB is sqrt(3*255^2) ≈ 441.67
+    max_dist = (3 * 255 ** 2) ** 0.5
+    threshold = similarity * max_dist
     # If already bonded, always attract
     if id(blob2) in blob1.bonded or id(blob1) in blob2.bonded:
         return True
@@ -100,7 +104,8 @@ while running:
     # ---------------------------------
 
     # Only handle collisions/merging and splitting every 10 frames
-    if frame_count % 10 == 0:
+    # if frame_count % 0 == 0:
+    if True:
         # Handle interactions and merging
         merged_indices = set()
         new_blobs = []
@@ -133,7 +138,7 @@ while running:
                                     merged_indices.add(j)
                                     new_blobs.append(merged_blob)
                                     break
-                        checked.add(j)
+                            checked.add(j)  # <-- Move this here, inside the innermost loop
 
         # Remove merged blobs and add new ones
         blobs = [b for idx, b in enumerate(blobs) if idx not in merged_indices]
