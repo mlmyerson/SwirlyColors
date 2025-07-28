@@ -13,14 +13,16 @@ clock = pygame.time.Clock()
 # Constants
 NUM_BLOBS = 200
 BLOB_RADIUS = 10
-COLOR_SHIFT_STRENGTH = 0.3  # 0 = no color change, 1 = max color change
-COLOR_SIMILARITY = 0.3  # 0 = only very similar colors merge, 1 = any color merges
-GRID_SIZE = 10 # Adjust for your blob size and screen
+COLOR_SHIFT_STRENGTH = 0.3
+COLOR_SIMILARITY = 1
+GRID_SIZE = 10
+MAX_COLLISIONS_PER_FRAME = 20
+MERGE_COOLDOWN_FRAMES = 5
+STAGGER_DIV = 2  # Only check every Nth blob per frame (set to 1 for no staggering)
 
 # Create blobs
 blobs = [Blob(BLOB_RADIUS, WIDTH, HEIGHT) for _ in range(NUM_BLOBS)]
 
-# Background color variables
 background_color = [20, 20, 30]
 background_shift = [random.choice([-1, 1]) for _ in range(3)]
 
@@ -42,6 +44,8 @@ def are_attracted(blob1, blob2, similarity=COLOR_SIMILARITY):
     # Max possible color distance in RGB is sqrt(3*255^2) ≈ 441.67
     max_dist = (3 * 255 ** 2) ** 0.5
     threshold = similarity * max_dist
+    if getattr(blob2, 'merge_cooldown', 0) > 0 or getattr(blob1, 'merge_cooldown', 0) > 0:
+        return False
     if id(blob2) in blob1.bonded or id(blob1) in blob2.bonded:
         return True
     if color_distance(average_color(blob1), average_color(blob2)) < threshold:
@@ -93,6 +97,11 @@ while running:
         blob.move()
         blob.draw(screen)
 
+    # Decrement merge cooldowns
+    for blob in blobs:
+        if hasattr(blob, 'merge_cooldown') and blob.merge_cooldown > 0:
+            blob.merge_cooldown -= 1
+
     # --- Build grid for this frame ---
     grid = {}
     for idx, blob in enumerate(blobs):
@@ -102,13 +111,19 @@ while running:
     # ---------------------------------
 
     # Only handle collisions/merging and splitting every 10 frames
-    # if frame_count % 0 == 0:
     if True:
-        # Handle interactions and merging
+        used_indices = set()
         merged_indices = set()
         new_blobs = []
+        collisions_this_frame = 0
+
         for i, blob in enumerate(blobs):
-            if i in merged_indices:
+            # Stagger: only check every Nth blob per frame
+            if i % STAGGER_DIV != frame_count % STAGGER_DIV:
+                continue
+            if i in used_indices or i in merged_indices:
+                continue
+            if getattr(blob, 'merge_cooldown', 0) > 0:
                 continue
             checked = set()
             cx1, cy1, br1 = blob.bounding_circle()
@@ -117,26 +132,38 @@ while running:
                 for dx in [-1, 0, 1]:
                     for dy in [-1, 0, 1]:
                         for j in grid.get((gx + dx, gy + dy), []):
-                            if j <= i or j in merged_indices or j in checked:
+                            if collisions_this_frame >= MAX_COLLISIONS_PER_FRAME:
+                                break
+                            if j <= i or j in used_indices or j in merged_indices or j in checked:
                                 continue
                             if j >= len(blobs):
                                 continue
                             blob2 = blobs[j]
-                            # --- Bounding circle pre-check ---
+                            if getattr(blob2, 'merge_cooldown', 0) > 0:
+                                continue
                             cx2, cy2, br2 = blob2.bounding_circle()
                             if math.hypot(cx1 - cx2, cy1 - cy2) > br1 + br2:
                                 checked.add(j)
-                                continue  # No possible collision, skip expensive check
-                            # --- End bounding circle pre-check ---
+                                continue
                             if any_subblob_collision(blob, blob2):
                                 attract = are_attracted(blob, blob2)
+                                if not attract:
+                                    checked.add(j)
+                                    continue
                                 merged_blob = blob.interact(blob2, attract=attract, color_shift_strength=COLOR_SHIFT_STRENGTH)
                                 if merged_blob:
+                                    merged_blob.merge_cooldown = MERGE_COOLDOWN_FRAMES
                                     merged_indices.add(i)
                                     merged_indices.add(j)
+                                    used_indices.add(i)
+                                    used_indices.add(j)
                                     new_blobs.append(merged_blob)
+                                    collisions_this_frame += 1
+                                    checked.add(j)
                                     break
-                            checked.add(j)  # <-- Move this here, inside the innermost loop
+                            checked.add(j)  # <-- This is safe, as j is always defined here
+            if collisions_this_frame >= MAX_COLLISIONS_PER_FRAME:
+                break
 
         # Remove merged blobs and add new ones
         blobs = [b for idx, b in enumerate(blobs) if idx not in merged_indices]

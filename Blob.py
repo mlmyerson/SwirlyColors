@@ -26,6 +26,7 @@ class Blob:
         self.vy = vy if vy is not None else random.uniform(-2, 2)
         # Track which blobs this blob is bonded to (by id)
         self.bonded = set() if bonded is None else set(bonded)
+        self.merge_cooldown = 0  # <-- Add this line
 
     def move(self):
         if len(self.sub_blobs) == 0:
@@ -107,6 +108,8 @@ class Blob:
                 self.bonded.add(id(other))
                 other.bonded.add(id(self))
                 new_sub_blobs = new_self_sub_blobs + new_other_sub_blobs
+                # Spread out sub-blobs to avoid overlap explosion
+                new_sub_blobs = self._spread_subblobs(new_sub_blobs, min_dist=5)
                 avg_vx = (self.vx + other.vx) / 2
                 avg_vy = (self.vy + other.vy) / 2
                 new_bonded = self.bonded.union(other.bonded)
@@ -228,6 +231,23 @@ class Blob:
         dists = np.sqrt((arr[:, 0] - cx) ** 2 + (arr[:, 1] - cy) ** 2) + arr[:, 2]
         max_r = np.max(dists)
         return (cx, cy, max_r)
+
+    @staticmethod
+    def _spread_subblobs(sub_blobs, min_dist=5):
+        """Spread sub-blobs in a small circle to avoid overlap after merging."""
+        n = len(sub_blobs)
+        if n == 1:
+            return sub_blobs
+        angle_step = 2 * math.pi / n
+        cx = sum(x for x, y, r, c in sub_blobs) / n
+        cy = sum(y for x, y, r, c in sub_blobs) / n
+        spread = []
+        for i, (x, y, r, color) in enumerate(sub_blobs):
+            angle = i * angle_step
+            nx = cx + math.cos(angle) * min_dist
+            ny = cy + math.sin(angle) * min_dist
+            spread.append((nx, ny, r, color))
+        return spread
 
 def color_distance(c1, c2):
     return sum((a - b) ** 2 for a, b in zip(c1, c2)) ** 0.5
