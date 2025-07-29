@@ -37,26 +37,21 @@ class Blob:
         # Repulsion
         for i in range(len(arr)):
             diff = arr[i, :2] - arr[:, :2]
+            diff[:, 0], diff[:, 1] = toroidal_distance(diff[:, 0], diff[:, 1], self.width, self.height)
             dist = np.linalg.norm(diff, axis=1)
             overlap = (arr[i, 2] + arr[:, 2]) - dist
             mask = (overlap > 0) & (dist > 0)
             if np.any(mask):
                 repel = diff[mask] / dist[mask][:, None]
                 repel_sum = np.sum(repel * overlap[mask][:, None], axis=0)
-                dx[i] += repel_sum[0] * 0.05
-                dy[i] += repel_sum[1] * 0.05
+                dx[i] += repel_sum[0] * 0.01  # Reduced from 0.05 to 0.01
+                dy[i] += repel_sum[1] * 0.01
         # Add random jiggle
         arr[:, 0] += dx + np.random.uniform(-0.1, 0.1, size=len(arr))
         arr[:, 1] += dy + np.random.uniform(-0.1, 0.1, size=len(arr))
-        # Clamp to screen and bounce
-        for i in range(len(arr)):
-            x, y, r = arr[i]
-            if x < r or x > self.width - r:
-                self.vx *= -1
-                arr[i, 0] = np.clip(x, r, self.width - r)
-            if y < r or y > self.height - r:
-                self.vy *= -1
-                arr[i, 1] = np.clip(y, r, self.height - r)
+        # Toroidal wrapping
+        arr[:, 0] = np.mod(arr[:, 0], self.width)
+        arr[:, 1] = np.mod(arr[:, 1], self.height)
         # Update sub_blobs
         self.sub_blobs = [(arr[i, 0], arr[i, 1], arr[i, 2], self.sub_blobs[i][3]) for i in range(len(arr))]
 
@@ -108,12 +103,14 @@ class Blob:
                 self.bonded.add(id(other))
                 other.bonded.add(id(self))
                 new_sub_blobs = new_self_sub_blobs + new_other_sub_blobs
-                # Spread out sub-blobs to avoid overlap explosion
-                new_sub_blobs = self._spread_subblobs(new_sub_blobs, min_dist=5)
+                # Use a larger min_dist based on sub-blob radii
+                max_r = max(r for _, _, r, _ in new_sub_blobs)
+                min_dist = max_r * 2
+                new_sub_blobs = self._spread_subblobs(new_sub_blobs, min_dist=min_dist)
                 avg_vx = (self.vx + other.vx) / 2
                 avg_vy = (self.vy + other.vy) / 2
                 new_bonded = self.bonded.union(other.bonded)
-                return Blob(
+                merged_blob = Blob(
                     radius=0,
                     width=self.width,
                     height=self.height,
@@ -122,6 +119,8 @@ class Blob:
                     vy=avg_vy,
                     bonded=new_bonded
                 )
+                merged_blob.merge_cooldown = 30  # Give time to settle (see next step)
+                return merged_blob
             else:
                 # Bounce: reverse velocities for both blobs
                 self.vx *= -1
@@ -253,13 +252,18 @@ def color_distance(c1, c2):
     return sum((a - b) ** 2 for a, b in zip(c1, c2)) ** 0.5
 
 def any_subblob_collision(blob1, blob2):
-    """Return True if any sub-blobs in blob1 and blob2 overlap (NumPy version)."""
     if not blob1.sub_blobs or not blob2.sub_blobs:
         return False
     arr1 = np.array([[x, y, r] for x, y, r, _ in blob1.sub_blobs])
     arr2 = np.array([[x, y, r] for x, y, r, _ in blob2.sub_blobs])
     dx = arr1[:, None, 0] - arr2[None, :, 0]
     dy = arr1[:, None, 1] - arr2[None, :, 1]
+    dx, dy = toroidal_distance(dx, dy, blob1.width, blob1.height)
     dist = np.sqrt(dx ** 2 + dy ** 2)
     min_dist = arr1[:, None, 2] + arr2[None, :, 2]
     return np.any(dist < min_dist)
+
+def toroidal_distance(dx, dy, width, height):
+    dx = dx - width * np.round(dx / width)
+    dy = dy - height * np.round(dy / height)
+    return dx, dy

@@ -79,8 +79,8 @@ while running:
                 if blobs:
                     blob = random.choice(blobs)
                     # Change velocity
-                    blob.vx = random.uniform(2, 20)
-                    blob.vy = random.uniform(2, 20)
+                    blob.vx = random.uniform(-10, 10)
+                    blob.vy = random.uniform(-10, 10)
                     # Change color of all sub-blobs
                     new_sub_blobs = []
                     for x, y, r, _ in blob.sub_blobs:
@@ -192,6 +192,8 @@ while running:
             x2, y2, r2, _ = blob2.sub_blobs[0]
             dx = x2 - x1
             dy = y2 - y1
+            dx = dx - WIDTH * round(dx / WIDTH)
+            dy = dy - HEIGHT * round(dy / HEIGHT)
             dist = (dx ** 2 + dy ** 2) ** 0.5
             min_dist = r1 + r2
             if dist < min_dist and dist > 0:
