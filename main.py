@@ -2,7 +2,7 @@ import pygame
 import random
 import math
 import numpy as np
-from Blob import Blob, any_subblob_collision  # <-- Import the function!
+from Blob import Blob, any_subblob_collision
 
 pygame.init()
 info = pygame.display.Info()
@@ -16,15 +16,18 @@ BLOB_RADIUS = 10
 COLOR_SHIFT_STRENGTH = 0.1
 COLOR_SIMILARITY = 1
 GRID_SIZE = 10
-MAX_COLLISIONS_PER_FRAME = 1000
-MERGE_COOLDOWN_FRAMES = 5
-STAGGER_DIV = 1  # Only check every Nth blob per frame (set to 1 for no staggering)
+MAX_COLLISIONS_PER_FRAME = 100  # More relaxed
+MERGE_COOLDOWN_FRAMES = 10      # Give blobs time to settle
+STAGGER_DIV = 1                 # Check every blob every frame
+MAX_SUBBLOBS_PER_BLOB = 50      # Split blobs that get too big
 
 # Create blobs
 blobs = [Blob(BLOB_RADIUS, WIDTH, HEIGHT) for _ in range(NUM_BLOBS)]
 
 background_color = [20, 20, 30]
 background_shift = [random.choice([-1, 1]) for _ in range(3)]
+
+speed_multiplier = 1.0  # Add this near your other globals
 
 def average_color(blob):
     """Return the average color (as a list of 3 ints) of all sub-blobs in a blob."""
@@ -41,7 +44,7 @@ def color_distance(c1, c2):
     return sum((a - b) ** 2 for a, b in zip(c1, c2)) ** 0.5
 
 def are_attracted(blob1, blob2, similarity=COLOR_SIMILARITY):
-    # Max possible color distance in RGB is sqrt(3*255^2) ≈ 441.67
+    """Return True if blobs are similar enough in color to attract/merge."""
     max_dist = (3 * 255 ** 2) ** 0.5
     threshold = similarity * max_dist
     if getattr(blob2, 'merge_cooldown', 0) > 0 or getattr(blob1, 'merge_cooldown', 0) > 0:
@@ -75,13 +78,15 @@ while running:
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 running = False
+            elif event.key == pygame.K_UP:
+                speed_multiplier *= 1.1  # Increase speed by 10%
+            elif event.key == pygame.K_DOWN:
+                speed_multiplier /= 1.1  # Decrease speed by ~9%
             elif pygame.K_a <= event.key <= pygame.K_z:
                 if blobs:
                     blob = random.choice(blobs)
-                    # Change velocity
                     blob.vx = random.uniform(-10, 10)
                     blob.vy = random.uniform(-10, 10)
-                    # Change color of all sub-blobs
                     new_sub_blobs = []
                     for x, y, r, _ in blob.sub_blobs:
                         new_color = [
@@ -94,7 +99,12 @@ while running:
 
     # Move and draw all blobs
     for blob in blobs:
+        # Scale velocities by speed_multiplier for this frame
+        orig_vx, orig_vy = blob.vx, blob.vy
+        blob.vx *= speed_multiplier
+        blob.vy *= speed_multiplier
         blob.move()
+        blob.vx, blob.vy = orig_vx, orig_vy  # Restore original velocities
         blob.draw(screen)
 
     # Decrement merge cooldowns
@@ -110,81 +120,99 @@ while running:
             grid.setdefault((gx, gy), set()).add(idx)
     # ---------------------------------
 
-    # Only handle collisions/merging and splitting every 10 frames
-    if True:
-        used_indices = set()
-        merged_indices = set()
-        new_blobs = []
-        collisions_this_frame = 0
+    # Only handle collisions/merging and splitting every frame
+    used_indices = set()
+    merged_indices = set()
+    new_blobs = []
+    collisions_this_frame = 0
 
-        for i, blob in enumerate(blobs):
-            # Stagger: only check every Nth blob per frame
-            if i % STAGGER_DIV != frame_count % STAGGER_DIV:
-                continue
-            if i in used_indices or i in merged_indices:
-                continue
-            if getattr(blob, 'merge_cooldown', 0) > 0:
-                continue
-            checked = set()
-            cx1, cy1, br1 = blob.bounding_circle()
-            for x, y, r, _ in blob.sub_blobs:
-                gx, gy = get_grid_pos(x, y)
-                for dx in [-1, 0, 1]:
-                    for dy in [-1, 0, 1]:
-                        for j in grid.get((gx + dx, gy + dy), []):
-                            if collisions_this_frame >= MAX_COLLISIONS_PER_FRAME:
-                                break
-                            if j <= i or j in used_indices or j in merged_indices or j in checked:
-                                continue
-                            if j >= len(blobs):
-                                continue
-                            blob2 = blobs[j]
-                            if getattr(blob2, 'merge_cooldown', 0) > 0:
-                                continue
-                            cx2, cy2, br2 = blob2.bounding_circle()
-                            if math.hypot(cx1 - cx2, cy1 - cy2) > br1 + br2:
+    for i, blob in enumerate(blobs):
+        if i % STAGGER_DIV != frame_count % STAGGER_DIV:
+            continue
+        if i in used_indices or i in merged_indices:
+            continue
+        if getattr(blob, 'merge_cooldown', 0) > 0:
+            continue
+        checked = set()
+        cx1, cy1, br1 = blob.bounding_circle()
+        for x, y, r, _ in blob.sub_blobs:
+            gx, gy = get_grid_pos(x, y)
+            for dx in [-1, 0, 1]:
+                for dy in [-1, 0, 1]:
+                    for j in grid.get((gx + dx, gy + dy), []):
+                        if collisions_this_frame >= MAX_COLLISIONS_PER_FRAME:
+                            break
+                        if j <= i or j in used_indices or j in merged_indices or j in checked:
+                            continue
+                        if j >= len(blobs):
+                            continue
+                        blob2 = blobs[j]
+                        if getattr(blob2, 'merge_cooldown', 0) > 0:
+                            checked.add(j)
+                            continue
+                        cx2, cy2, br2 = blob2.bounding_circle()
+                        if math.hypot(cx1 - cx2, cy1 - cy2) > br1 + br2:
+                            checked.add(j)
+                            continue
+                        if any_subblob_collision(blob, blob2):
+                            attract = are_attracted(blob, blob2)
+                            if not attract:
                                 checked.add(j)
                                 continue
-                            if any_subblob_collision(blob, blob2):
-                                attract = are_attracted(blob, blob2)
-                                if not attract:
-                                    checked.add(j)
-                                    continue
-                                merged_blob = blob.interact(blob2, attract=attract, color_shift_strength=COLOR_SHIFT_STRENGTH)
-                                if merged_blob:
-                                    merged_blob.merge_cooldown = MERGE_COOLDOWN_FRAMES
-                                    merged_indices.add(i)
-                                    merged_indices.add(j)
-                                    used_indices.add(i)
-                                    used_indices.add(j)
-                                    new_blobs.append(merged_blob)
-                                    collisions_this_frame += 1
-                                    checked.add(j)
-                                    break
-                            checked.add(j)  # <-- This is safe, as j is always defined here
+                            merged_blob = blob.interact(blob2, attract=attract, color_shift_strength=COLOR_SHIFT_STRENGTH)
+                            if merged_blob:
+                                merged_blob.merge_cooldown = MERGE_COOLDOWN_FRAMES
+                                merged_indices.add(i)
+                                merged_indices.add(j)
+                                used_indices.add(i)
+                                used_indices.add(j)
+                                new_blobs.append(merged_blob)
+                                collisions_this_frame += 1
+                                checked.add(j)
+                                break
+                        checked.add(j)
             if collisions_this_frame >= MAX_COLLISIONS_PER_FRAME:
                 break
 
-        # Remove merged blobs and add new ones
-        blobs = [b for idx, b in enumerate(blobs) if idx not in merged_indices]
-        blobs.extend(new_blobs)
+    # Remove merged blobs and add new ones
+    blobs = [b for idx, b in enumerate(blobs) if idx not in merged_indices]
+    blobs.extend(new_blobs)
 
-        # After handling merges, eject outlier sub-blobs
-        ejected_blobs = []
-        for blob in blobs:
-            ejected_blobs.extend(blob.eject_outlier_subblobs(color_threshold=100, color_shift_strength=COLOR_SHIFT_STRENGTH))
-        blobs.extend(ejected_blobs)
+    # After handling merges, eject outlier sub-blobs
+    ejected_blobs = []
+    for blob in blobs:
+        ejected_blobs.extend(blob.eject_outlier_subblobs(color_threshold=100, color_shift_strength=COLOR_SHIFT_STRENGTH))
+    blobs.extend(ejected_blobs)
 
-        # Now split blobs if they're disconnected
-        split_blobs = []
-        for blob in blobs:
-            split_blobs.extend(blob.split_if_disconnected())
-        blobs = split_blobs
+    # Now split blobs if they're disconnected
+    split_blobs = []
+    for blob in blobs:
+        split_blobs.extend(blob.split_if_disconnected())
+    blobs = split_blobs
+
+    # Split blobs with too many sub-blobs
+    final_blobs = []
+    for blob in blobs:
+        if len(blob.sub_blobs) > MAX_SUBBLOBS_PER_BLOB:
+            for i in range(0, len(blob.sub_blobs), MAX_SUBBLOBS_PER_BLOB):
+                chunk = blob.sub_blobs[i:i+MAX_SUBBLOBS_PER_BLOB]
+                final_blobs.append(Blob(
+                    radius=0,
+                    width=blob.width,
+                    height=blob.height,
+                    sub_blobs=chunk,
+                    vx=blob.vx + random.uniform(-1, 1),
+                    vy=blob.vy + random.uniform(-1, 1),
+                    bonded=set(blob.bonded)
+                ))
+        else:
+            final_blobs.append(blob)
+    blobs = final_blobs
 
     # Remove blobs with no sub-blobs
     blobs = [b for b in blobs if len(b.sub_blobs) > 0]
 
-    # After all merging/splitting logic, separate overlapping blobs
+    # After all merging/splitting logic, separate overlapping blobs (toroidal)
     for i, blob1 in enumerate(blobs):
         for j in range(i + 1, len(blobs)):
             blob2 = blobs[j]
@@ -216,14 +244,14 @@ while running:
             for blob2 in blobs:
                 if blob1 is blob2 or len(blob2.sub_blobs) < 2:
                     continue
-                # Check if single blob is inside any sub-blob of the larger blob
                 for x2, y2, r2, _ in blob2.sub_blobs:
                     dx = x1 - x2
                     dy = y1 - y2
+                    dx = dx - WIDTH * round(dx / WIDTH)
+                    dy = dy - HEIGHT * round(dy / HEIGHT)
                     dist = (dx ** 2 + dy ** 2) ** 0.5
                     min_dist = r1 + r2
                     if dist < min_dist and dist > 0:
-                        # Move the single-sub-blob blob out of the larger blob
                         overlap = min_dist - dist
                         move_x = (dx / dist) * overlap if dist != 0 else overlap
                         move_y = (dy / dist) * overlap if dist != 0 else overlap

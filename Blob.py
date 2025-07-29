@@ -4,15 +4,14 @@ import pygame
 import math
 import numpy as np
 
-# Constants
-MERGE_COOLDOWN_FRAMES = 1  # Adjust this value to change the merge cooldown duration
+MERGE_COOLDOWN_FRAMES = 10  # Should match main.py
 
 class Blob:
+    """A blob composed of one or more sub-blobs, with position, color, and velocity."""
     def __init__(self, radius, width, height, sub_blobs=None, vx=None, vy=None, bonded=None):
         self.width = width
         self.height = height
         if sub_blobs is None:
-            # Each sub-blob is (x, y, radius, color)
             self.sub_blobs = [(
                 random.uniform(radius, width - radius),
                 random.uniform(radius, height - radius),
@@ -27,17 +26,17 @@ class Blob:
             self.sub_blobs = sub_blobs
         self.vx = vx if vx is not None else random.uniform(-2, 2)
         self.vy = vy if vy is not None else random.uniform(-2, 2)
-        # Track which blobs this blob is bonded to (by id)
         self.bonded = set() if bonded is None else set(bonded)
-        self.merge_cooldown = 0  # <-- Add this line
+        self.merge_cooldown = 0
 
     def move(self):
+        """Move all sub-blobs, apply repulsion, and wrap toroidally."""
         if len(self.sub_blobs) == 0:
             return
         arr = np.array([[x, y, r] for x, y, r, _ in self.sub_blobs])
         dx = np.full(len(arr), self.vx)
         dy = np.full(len(arr), self.vy)
-        # Repulsion
+        # Repulsion (O(n^2), but vectorized)
         for i in range(len(arr)):
             diff = arr[i, :2] - arr[:, :2]
             diff[:, 0], diff[:, 1] = toroidal_distance(diff[:, 0], diff[:, 1], self.width, self.height)
@@ -47,7 +46,7 @@ class Blob:
             if np.any(mask):
                 repel = diff[mask] / dist[mask][:, None]
                 repel_sum = np.sum(repel * overlap[mask][:, None], axis=0)
-                dx[i] += repel_sum[0] * 0.01  # Reduced from 0.05 to 0.01
+                dx[i] += repel_sum[0] * 0.01
                 dy[i] += repel_sum[1] * 0.01
         # Add random jiggle
         arr[:, 0] += dx + np.random.uniform(-0.1, 0.1, size=len(arr))
@@ -55,27 +54,24 @@ class Blob:
         # Toroidal wrapping
         arr[:, 0] = np.mod(arr[:, 0], self.width)
         arr[:, 1] = np.mod(arr[:, 1], self.height)
-        # Update sub_blobs
         self.sub_blobs = [(arr[i, 0], arr[i, 1], arr[i, 2], self.sub_blobs[i][3]) for i in range(len(arr))]
 
     def draw(self, surface):
+        """Draw all sub-blobs to the given surface."""
         for x, y, r, color in self.sub_blobs:
             pygame.draw.circle(surface, color, (int(x), int(y)), int(r))
 
-    def is_colliding(self, other):
-        for x1, y1, r1, _ in self.sub_blobs:
-            for x2, y2, r2, _ in other.sub_blobs:
-                if math.hypot(x1 - x2, y1 - y2) < r1 + r2:
-                    return True
-        return False
-
     def interact(self, other, attract=True, color_shift_strength=0.5):
+        """Handle collision and merging/bouncing with another blob."""
         collided = False
         new_self_sub_blobs = list(self.sub_blobs)
         new_other_sub_blobs = list(other.sub_blobs)
         for i, (x1, y1, r1, color1) in enumerate(self.sub_blobs):
             for j, (x2, y2, r2, color2) in enumerate(other.sub_blobs):
-                if math.hypot(x1 - x2, y1 - y2) < r1 + r2:
+                dx = x1 - x2
+                dy = y1 - y2
+                dx, dy = toroidal_distance(dx, dy, self.width, self.height)
+                if math.hypot(dx, dy) < r1 + r2:
                     collided = True
                     def shift_color(color, vx, vy):
                         base_shift = (abs(vx) + abs(vy)) * 2
@@ -106,7 +102,6 @@ class Blob:
                 self.bonded.add(id(other))
                 other.bonded.add(id(self))
                 new_sub_blobs = new_self_sub_blobs + new_other_sub_blobs
-                # Use a larger min_dist based on sub-blob radii
                 max_r = max(r for _, _, r, _ in new_sub_blobs)
                 min_dist = max_r * 2
                 new_sub_blobs = self._spread_subblobs(new_sub_blobs, min_dist=min_dist)
@@ -125,12 +120,10 @@ class Blob:
                 merged_blob.merge_cooldown = MERGE_COOLDOWN_FRAMES
                 return merged_blob
             else:
-                # Bounce: reverse velocities for both blobs
                 self.vx *= -1
                 self.vy *= -1
                 other.vx *= -1
                 other.vy *= -1
-                # Update sub-blobs with bounced colors
                 self.sub_blobs = new_self_sub_blobs
                 other.sub_blobs = new_other_sub_blobs
                 return None
@@ -140,14 +133,12 @@ class Blob:
         """Return a list of new Blobs for ejected sub-blobs, and update self.sub_blobs."""
         if len(self.sub_blobs) <= 1:
             return []
-        # Compute average color of all sub-blobs
         n = len(self.sub_blobs)
         avg = [0, 0, 0]
         for _, _, _, color in self.sub_blobs:
             for i in range(3):
                 avg[i] += color[i]
         avg = [int(x / n) for x in avg]
-        # Find outliers
         keep = []
         ejected = []
         for sub in self.sub_blobs:
@@ -157,7 +148,6 @@ class Blob:
             else:
                 keep.append(sub)
         self.sub_blobs = keep
-        # Create new blobs for ejected sub-blobs
         new_blobs = []
         for x, y, r, color in ejected:
             new_blobs.append(
@@ -166,7 +156,7 @@ class Blob:
                     width=self.width,
                     height=self.height,
                     sub_blobs=[(x, y, r, color)],
-                    vx=self.vx + random.uniform(-2, 2),  # Give it a little kick
+                    vx=self.vx + random.uniform(-2, 2),
                     vy=self.vy + random.uniform(-2, 2)
                 )
             )
@@ -182,12 +172,14 @@ class Blob:
         def are_connected(sub1, sub2):
             x1, y1, r1, _ = sub1
             x2, y2, r2, _ = sub2
-            return math.hypot(x1 - x2, y1 - y2) < r1 + r2
+            dx = x1 - x2
+            dy = y1 - y2
+            dx, dy = toroidal_distance(dx, dy, self.width, self.height)
+            return math.hypot(dx, dy) < r1 + r2
 
         for idx, sub in enumerate(self.sub_blobs):
             if idx in visited:
                 continue
-            # BFS to find all connected sub-blobs
             queue = [idx]
             group = []
             while queue:
@@ -207,7 +199,6 @@ class Blob:
         components = self._find_connected_components()
         if len(components) <= 1:
             return [self]
-        # Otherwise, make a new Blob for each component
         new_blobs = []
         for sub_blobs in components:
             new_blobs.append(
@@ -252,9 +243,11 @@ class Blob:
         return spread
 
 def color_distance(c1, c2):
+    """Euclidean distance between two RGB colors."""
     return sum((a - b) ** 2 for a, b in zip(c1, c2)) ** 0.5
 
 def any_subblob_collision(blob1, blob2):
+    """Return True if any sub-blobs in blob1 and blob2 overlap (NumPy version, toroidal)."""
     if not blob1.sub_blobs or not blob2.sub_blobs:
         return False
     arr1 = np.array([[x, y, r] for x, y, r, _ in blob1.sub_blobs])
@@ -267,6 +260,7 @@ def any_subblob_collision(blob1, blob2):
     return np.any(dist < min_dist)
 
 def toroidal_distance(dx, dy, width, height):
+    """Return the minimum toroidal (wrapped) distance for dx, dy arrays."""
     dx = dx - width * np.round(dx / width)
     dy = dy - height * np.round(dy / height)
     return dx, dy
