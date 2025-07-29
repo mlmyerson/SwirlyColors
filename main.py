@@ -17,7 +17,7 @@ COLOR_SHIFT_STRENGTH = 0.1
 COLOR_SIMILARITY = 1
 GRID_SIZE = 10
 MAX_COLLISIONS_PER_FRAME = 100  # More relaxed
-MERGE_COOLDOWN_FRAMES = 1      # Give blobs time to settle
+MERGE_COOLDOWN_FRAMES = 10      # Give blobs time to settle
 STAGGER_DIV = 1                 # Check every blob every frame
 MAX_SUBBLOBS_PER_BLOB = 50      # Split blobs that get too big
 
