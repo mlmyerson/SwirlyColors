@@ -4,13 +4,40 @@ import pygame
 import math
 import numpy as np
 
-# --- Tunable constants ---
-MERGE_COOLDOWN_FRAMES = 1  # Short cooldown for organic growth
-MAX_SUBBLOBS_PER_BLOB = 50  # Cap blob size for performance
-SPREAD_EXTRA = 0.001         # Spread distance = (r1 + r2) * SPREAD_EXTRA
-SPREAD_JITTER = 2.0         # Random jitter after spreading
-BASE_REPULSION = 0.008      # Base repulsion strength
-GRID_CELL_SIZE = 24         # For spatial partitioning
+# === Tunable Simulation Constants ===
+
+MERGE_COOLDOWN_FRAMES = 1
+# Minimum number of frames a merged blob must wait before merging again.
+# Increase to reduce rapid-fire merging (helps at high speeds), decrease for more organic growth.
+
+MAX_SUBBLOBS_PER_BLOB = 50
+# Maximum number of sub-blobs allowed in a single blob before it is split.
+# Lower for better performance and more fragmentation, higher for larger blobs.
+
+SPREAD_EXTRA = 1.15
+# Multiplier for minimum separation between sub-blobs after a merge.
+# Increase to reduce immediate overlaps after merging (but may make blobs less cohesive).
+# Decrease for more compact, irregular blobs.
+
+SPREAD_JITTER = 2.0
+# Amount of random jitter added to sub-blob positions after merging.
+# Increase for more irregular, organic shapes; decrease for smoother merges.
+
+BASE_REPULSION = 0.008
+# Base strength of repulsion between sub-blobs.
+# Increase to keep blobs from overlapping, decrease for more compact blobs.
+
+GRID_CELL_SIZE = 24
+# Size of the spatial grid cells for repulsion and collision checks.
+# Lower for more accurate but slower physics, higher for faster but less accurate.
+
+MAX_STEP_FRACTION = 0.5
+# Maximum fraction of a sub-blob's radius it can move in a single physics substep.
+# Lower to prevent "teleporting" and tunneling, higher for faster movement.
+
+PHYSICS_SUBSTEPS = 4
+# Number of physics substeps per frame.
+# Increase for more stable physics at high speeds, decrease for better performance.
 
 class Blob:
     """A blob composed of one or more sub-blobs, with position, color, and velocity."""
@@ -36,47 +63,61 @@ class Blob:
         self.merge_cooldown = 0
 
     def move(self):
-        """Move all sub-blobs, apply repulsion (using spatial grid), and wrap toroidally."""
+        """Move all sub-blobs, apply repulsion (using spatial grid), and wrap toroidally, with substeps and clamped step size."""
         if len(self.sub_blobs) == 0:
             return
         arr = np.array([[x, y, r] for x, y, r, _ in self.sub_blobs])
-        dx = np.full(len(arr), self.vx)
-        dy = np.full(len(arr), self.vy)
+        for _ in range(PHYSICS_SUBSTEPS):
+            dx = np.full(len(arr), self.vx / PHYSICS_SUBSTEPS)
+            dy = np.full(len(arr), self.vy / PHYSICS_SUBSTEPS)
 
-        # --- Spatial grid for repulsion ---
-        grid = {}
-        for idx, (x, y, r) in enumerate(arr):
-            gx, gy = int(x // GRID_CELL_SIZE), int(y // GRID_CELL_SIZE)
-            grid.setdefault((gx, gy), []).append(idx)
+            # --- Spatial grid for repulsion ---
+            grid = {}
+            for idx, (x, y, r) in enumerate(arr):
+                gx, gy = int(x // GRID_CELL_SIZE), int(y // GRID_CELL_SIZE)
+                grid.setdefault((gx, gy), []).append(idx)
 
-        repulsion_strength = BASE_REPULSION / max(1, len(arr) ** 0.5)  # Larger blobs repel less
+            # Adaptive repulsion: scale with speed
+            speed = np.hypot(self.vx, self.vy)
+            repulsion_strength = BASE_REPULSION / max(1, len(arr) ** 0.5)
+            repulsion_strength *= (1 + speed / 5)
 
-        for i, (x, y, r) in enumerate(arr):
-            gx, gy = int(x // GRID_CELL_SIZE), int(y // GRID_CELL_SIZE)
-            neighbors = []
-            for dxg in [-1, 0, 1]:
-                for dyg in [-1, 0, 1]:
-                    cell = ((gx + dxg) % (self.width // GRID_CELL_SIZE),
-                            (gy + dyg) % (self.height // GRID_CELL_SIZE))
-                    neighbors.extend(grid.get(cell, []))
-            for j in neighbors:
-                if i == j:
-                    continue
-                x2, y2, r2 = arr[j]
-                ddx, ddy = toroidal_distance(x - x2, y - y2, self.width, self.height)
-                dist = math.hypot(ddx, ddy)
-                overlap = (r + r2) - dist
-                if overlap > 0 and dist > 0:
-                    repel = overlap / dist
-                    dx[i] += ddx * repel * repulsion_strength
-                    dy[i] += ddy * repel * repulsion_strength
+            for i, (x, y, r) in enumerate(arr):
+                gx, gy = int(x // GRID_CELL_SIZE), int(y // GRID_CELL_SIZE)
+                neighbors = []
+                for dxg in [-1, 0, 1]:
+                    for dyg in [-1, 0, 1]:
+                        cell = ((gx + dxg) % (self.width // GRID_CELL_SIZE),
+                                (gy + dyg) % (self.height // GRID_CELL_SIZE))
+                        neighbors.extend(grid.get(cell, []))
+                for j in neighbors:
+                    if i == j:
+                        continue
+                    x2, y2, r2 = arr[j]
+                    ddx, ddy = toroidal_distance(x - x2, y - y2, self.width, self.height)
+                    dist = math.hypot(ddx, ddy)
+                    buffer_zone = 1.2
+                    repel_zone = (r + r2) * buffer_zone
+                    if dist < repel_zone and dist > 0:
+                        overlap = repel_zone - dist
+                        repel = overlap / repel_zone
+                        dx[i] += ddx * repel * repulsion_strength
+                        dy[i] += ddy * repel * repulsion_strength
 
-        # Add random jiggle
-        arr[:, 0] += dx + np.random.uniform(-0.1, 0.1, size=len(arr))
-        arr[:, 1] += dy + np.random.uniform(-0.1, 0.1, size=len(arr))
-        # Toroidal wrapping
-        arr[:, 0] = np.mod(arr[:, 0], self.width)
-        arr[:, 1] = np.mod(arr[:, 1], self.height)
+            # Clamp step size for each sub-blob
+            for i, (x, y, r) in enumerate(arr):
+                step = math.hypot(dx[i], dy[i])
+                max_step = r * MAX_STEP_FRACTION
+                if step > max_step:
+                    scale = max_step / step
+                    dx[i] *= scale
+                    dy[i] *= scale
+
+            # Add random jiggle
+            arr[:, 0] += dx + np.random.uniform(-0.1, 0.1, size=len(arr))
+            arr[:, 1] += dy + np.random.uniform(-0.1, 0.1, size=len(arr))
+            arr[:, 0] = np.mod(arr[:, 0], self.width)
+            arr[:, 1] = np.mod(arr[:, 1], self.height)
         self.sub_blobs = [(arr[i, 0], arr[i, 1], arr[i, 2], self.sub_blobs[i][3]) for i in range(len(arr))]
 
     def draw(self, surface):
@@ -125,15 +166,14 @@ class Blob:
                 self.bonded.add(id(other))
                 other.bonded.add(id(self))
                 new_sub_blobs = new_self_sub_blobs + new_other_sub_blobs
-
-                # --- Tuned spreading: just over the sum of the two largest radii, with jitter ---
                 radii = sorted([r for _, _, r, _ in new_sub_blobs], reverse=True)
                 if len(radii) >= 2:
-                    min_dist = (radii[0] + radii[1]) * SPREAD_EXTRA
+                    base_dist = (radii[0] + radii[1])
                 else:
-                    min_dist = radii[0] * SPREAD_EXTRA
+                    base_dist = radii[0]
+                speed = math.hypot(self.vx, self.vy) + math.hypot(other.vx, other.vy)
+                min_dist = base_dist * (SPREAD_EXTRA + 0.1 * min(1, speed / 10))
                 new_sub_blobs = nonuniform_spread(new_sub_blobs, min_dist, jitter=SPREAD_JITTER)
-
                 avg_vx = (self.vx + other.vx) / 2
                 avg_vy = (self.vy + other.vy) / 2
                 new_bonded = self.bonded.union(other.bonded)
@@ -146,7 +186,7 @@ class Blob:
                     vy=avg_vy,
                     bonded=new_bonded
                 )
-                merged_blob.merge_cooldown = MERGE_COOLDOWN_FRAMES
+                merged_blob.merge_cooldown = int(MERGE_COOLDOWN_FRAMES * (1 + speed / 10))
                 return merged_blob
             else:
                 self.vx *= -1
@@ -248,7 +288,6 @@ class Blob:
         if not self.sub_blobs:
             return (0, 0, 0)
         arr = np.array([[x, y, r] for x, y, r, _ in self.sub_blobs])
-        # Use the mean as a reference, then compute toroidal distances
         cx = np.mean(arr[:, 0])
         cy = np.mean(arr[:, 1])
         dx = arr[:, 0] - cx
@@ -256,7 +295,6 @@ class Blob:
         dx, dy = toroidal_distance(dx, dy, self.width, self.height)
         dists = np.sqrt(dx ** 2 + dy ** 2) + arr[:, 2]
         max_r = np.max(dists)
-        # Return the center wrapped into the domain
         cx = np.mod(cx, self.width)
         cy = np.mod(cy, self.height)
         return (cx, cy, max_r)
@@ -289,7 +327,6 @@ def nonuniform_spread(sub_blobs, min_dist, jitter=2.0):
     n = len(sub_blobs)
     if n == 1:
         return sub_blobs
-    # Place each sub-blob at its original position plus a random offset
     spread = []
     for x, y, r, color in sub_blobs:
         angle = random.uniform(0, 2 * math.pi)

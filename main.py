@@ -10,27 +10,54 @@ WIDTH, HEIGHT = info.current_w, info.current_h
 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
 clock = pygame.time.Clock()
 
-# Constants
-NUM_BLOBS = 100
-BLOB_RADIUS = 10
-COLOR_SHIFT_STRENGTH = 0.1
-COLOR_SIMILARITY = 1
-GRID_SIZE = 10
-MAX_COLLISIONS_PER_FRAME = 1000  # More relaxed
-MERGE_COOLDOWN_FRAMES = 1      # Give blobs time to settle
-STAGGER_DIV = 1                 # Check every blob every frame
-MAX_SUBBLOBS_PER_BLOB = 50      # Split blobs that get too big
+# === Tunable Simulation Constants ===
 
-# Create blobs
+NUM_BLOBS = 100
+# Number of initial blobs in the simulation.
+# Increase for more activity, decrease for performance.
+
+BLOB_RADIUS = 10
+# Radius of each initial blob's sub-blob.
+# Increase for larger blobs, decrease for more granular blobs.
+
+COLOR_SHIFT_STRENGTH = 0.1
+# How much color shifts on collision/merge.
+# Increase for more dramatic color changes.
+
+COLOR_SIMILARITY = 1
+# Color similarity threshold for attraction/merging.
+# Lower for stricter merging, higher for more frequent merges.
+
+GRID_SIZE = 10
+# Size of the grid cells for blob group collision checks.
+# Lower for more accurate but slower checks.
+
+MAX_COLLISIONS_PER_FRAME = 1000
+# Maximum number of blob merges/collisions processed per frame.
+# Lower to throttle merging, higher for more dynamic merging.
+
+MERGE_COOLDOWN_FRAMES = 1
+# Minimum number of frames a merged blob must wait before merging again.
+# Increase to reduce rapid-fire merging (helps at high speeds), decrease for more organic growth.
+
+STAGGER_DIV = 1
+# Only check every nth blob per frame (for performance).
+# Increase for less frequent checks, decrease for more frequent.
+
+MAX_SUBBLOBS_PER_BLOB = 50
+# Maximum number of sub-blobs allowed in a single blob before it is split.
+# Lower for better performance and more fragmentation, higher for larger blobs.
+
+speed_multiplier = 1.0
+# Global speed multiplier for all blobs.
+# Use up/down arrow keys to adjust at runtime.
+
 blobs = [Blob(BLOB_RADIUS, WIDTH, HEIGHT) for _ in range(NUM_BLOBS)]
 
 background_color = [20, 20, 30]
 background_shift = [random.choice([-1, 1]) for _ in range(3)]
 
-speed_multiplier = 1.0  # Add this near your other globals
-
 def average_color(blob):
-    """Return the average color (as a list of 3 ints) of all sub-blobs in a blob."""
     n = len(blob.sub_blobs)
     if n == 0:
         return [0, 0, 0]
@@ -44,7 +71,6 @@ def color_distance(c1, c2):
     return sum((a - b) ** 2 for a, b in zip(c1, c2)) ** 0.5
 
 def are_attracted(blob1, blob2, similarity=COLOR_SIMILARITY):
-    """Return True if blobs are similar enough in color to attract/merge."""
     max_dist = (3 * 255 ** 2) ** 0.5
     threshold = similarity * max_dist
     if getattr(blob2, 'merge_cooldown', 0) > 0 or getattr(blob1, 'merge_cooldown', 0) > 0:
@@ -64,7 +90,6 @@ frame_count = 0
 running = True
 while running:
     frame_count += 1
-    # Slowly shift background color
     for i in range(3):
         background_color[i] += background_shift[i] * random.uniform(0.1, 0.5)
         if background_color[i] < 10 or background_color[i] > 80:
@@ -79,9 +104,9 @@ while running:
             if event.key == pygame.K_ESCAPE:
                 running = False
             elif event.key == pygame.K_UP:
-                speed_multiplier *= 1.1  # Increase speed by 10%
+                speed_multiplier *= 1.1
             elif event.key == pygame.K_DOWN:
-                speed_multiplier /= 1.1  # Decrease speed by ~9%
+                speed_multiplier /= 1.1
             elif pygame.K_a <= event.key <= pygame.K_z:
                 if blobs:
                     blob = random.choice(blobs)
@@ -97,30 +122,24 @@ while running:
                         new_sub_blobs.append((x, y, r, new_color))
                     blob.sub_blobs = new_sub_blobs
 
-    # Move and draw all blobs
     for blob in blobs:
-        # Scale velocities by speed_multiplier for this frame
         orig_vx, orig_vy = blob.vx, blob.vy
         blob.vx *= speed_multiplier
         blob.vy *= speed_multiplier
         blob.move()
-        blob.vx, blob.vy = orig_vx, orig_vy  # Restore original velocities
+        blob.vx, blob.vy = orig_vx, orig_vy
         blob.draw(screen)
 
-    # Decrement merge cooldowns
     for blob in blobs:
         if hasattr(blob, 'merge_cooldown') and blob.merge_cooldown > 0:
             blob.merge_cooldown -= 1
 
-    # --- Build grid for this frame ---
     grid = {}
     for idx, blob in enumerate(blobs):
         for x, y, r, _ in blob.sub_blobs:
             gx, gy = get_grid_pos(x, y)
             grid.setdefault((gx, gy), set()).add(idx)
-    # ---------------------------------
 
-    # Only handle collisions/merging and splitting every frame
     used_indices = set()
     merged_indices = set()
     new_blobs = []
@@ -174,23 +193,19 @@ while running:
             if collisions_this_frame >= MAX_COLLISIONS_PER_FRAME:
                 break
 
-    # Remove merged blobs and add new ones
     blobs = [b for idx, b in enumerate(blobs) if idx not in merged_indices]
     blobs.extend(new_blobs)
 
-    # After handling merges, eject outlier sub-blobs
     ejected_blobs = []
     for blob in blobs:
         ejected_blobs.extend(blob.eject_outlier_subblobs(color_threshold=100, color_shift_strength=COLOR_SHIFT_STRENGTH))
     blobs.extend(ejected_blobs)
 
-    # Now split blobs if they're disconnected
     split_blobs = []
     for blob in blobs:
         split_blobs.extend(blob.split_if_disconnected())
     blobs = split_blobs
 
-    # Split blobs with too many sub-blobs
     final_blobs = []
     for blob in blobs:
         if len(blob.sub_blobs) > MAX_SUBBLOBS_PER_BLOB:
@@ -209,10 +224,8 @@ while running:
             final_blobs.append(blob)
     blobs = final_blobs
 
-    # Remove blobs with no sub-blobs
     blobs = [b for b in blobs if len(b.sub_blobs) > 0]
 
-    # After all merging/splitting logic, separate overlapping blobs (toroidal)
     for i, blob1 in enumerate(blobs):
         for j in range(i + 1, len(blobs)):
             blob2 = blobs[j]
@@ -237,7 +250,6 @@ while running:
                     for (x, y, r, color) in blob2.sub_blobs
                 ]
 
-    # Only separate single-sub-blob blobs from larger blobs to prevent them getting stuck
     for blob1 in blobs:
         if len(blob1.sub_blobs) == 1:
             x1, y1, r1, _ = blob1.sub_blobs[0]
