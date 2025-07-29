@@ -4,7 +4,13 @@ import pygame
 import math
 import numpy as np
 
-MERGE_COOLDOWN_FRAMES = 10  # Should match main.py
+# --- Tunable constants ---
+MERGE_COOLDOWN_FRAMES = 1  # Short cooldown for organic growth
+MAX_SUBBLOBS_PER_BLOB = 50  # Cap blob size for performance
+SPREAD_EXTRA = 0.001         # Spread distance = (r1 + r2) * SPREAD_EXTRA
+SPREAD_JITTER = 2.0         # Random jitter after spreading
+BASE_REPULSION = 0.008      # Base repulsion strength
+GRID_CELL_SIZE = 24         # For spatial partitioning
 
 class Blob:
     """A blob composed of one or more sub-blobs, with position, color, and velocity."""
@@ -30,13 +36,42 @@ class Blob:
         self.merge_cooldown = 0
 
     def move(self):
-        """Move all sub-blobs and wrap toroidally (no repulsion)."""
+        """Move all sub-blobs, apply repulsion (using spatial grid), and wrap toroidally."""
         if len(self.sub_blobs) == 0:
             return
         arr = np.array([[x, y, r] for x, y, r, _ in self.sub_blobs])
         dx = np.full(len(arr), self.vx)
         dy = np.full(len(arr), self.vy)
-        # No repulsion: just move and jiggle
+
+        # --- Spatial grid for repulsion ---
+        grid = {}
+        for idx, (x, y, r) in enumerate(arr):
+            gx, gy = int(x // GRID_CELL_SIZE), int(y // GRID_CELL_SIZE)
+            grid.setdefault((gx, gy), []).append(idx)
+
+        repulsion_strength = BASE_REPULSION / max(1, len(arr) ** 0.5)  # Larger blobs repel less
+
+        for i, (x, y, r) in enumerate(arr):
+            gx, gy = int(x // GRID_CELL_SIZE), int(y // GRID_CELL_SIZE)
+            neighbors = []
+            for dxg in [-1, 0, 1]:
+                for dyg in [-1, 0, 1]:
+                    cell = ((gx + dxg) % (self.width // GRID_CELL_SIZE),
+                            (gy + dyg) % (self.height // GRID_CELL_SIZE))
+                    neighbors.extend(grid.get(cell, []))
+            for j in neighbors:
+                if i == j:
+                    continue
+                x2, y2, r2 = arr[j]
+                ddx, ddy = toroidal_distance(x - x2, y - y2, self.width, self.height)
+                dist = math.hypot(ddx, ddy)
+                overlap = (r + r2) - dist
+                if overlap > 0 and dist > 0:
+                    repel = overlap / dist
+                    dx[i] += ddx * repel * repulsion_strength
+                    dy[i] += ddy * repel * repulsion_strength
+
+        # Add random jiggle
         arr[:, 0] += dx + np.random.uniform(-0.1, 0.1, size=len(arr))
         arr[:, 1] += dy + np.random.uniform(-0.1, 0.1, size=len(arr))
         # Toroidal wrapping
@@ -90,8 +125,15 @@ class Blob:
                 self.bonded.add(id(other))
                 other.bonded.add(id(self))
                 new_sub_blobs = new_self_sub_blobs + new_other_sub_blobs
-                # Do NOT spread sub-blobs: keep their positions
-                # new_sub_blobs = self._spread_subblobs(new_sub_blobs, min_dist=0)
+
+                # --- Tuned spreading: just over the sum of the two largest radii, with jitter ---
+                radii = sorted([r for _, _, r, _ in new_sub_blobs], reverse=True)
+                if len(radii) >= 2:
+                    min_dist = (radii[0] + radii[1]) * SPREAD_EXTRA
+                else:
+                    min_dist = radii[0] * SPREAD_EXTRA
+                new_sub_blobs = nonuniform_spread(new_sub_blobs, min_dist, jitter=SPREAD_JITTER)
+
                 avg_vx = (self.vx + other.vx) / 2
                 avg_vy = (self.vy + other.vy) / 2
                 new_bonded = self.bonded.union(other.bonded)
@@ -202,32 +244,22 @@ class Blob:
         return new_blobs
 
     def bounding_circle(self):
-        """Return (cx, cy, radius) for a circle that bounds all sub-blobs (NumPy version)."""
+        """Return (cx, cy, radius) for a circle that bounds all sub-blobs (toroidal-aware)."""
         if not self.sub_blobs:
             return (0, 0, 0)
         arr = np.array([[x, y, r] for x, y, r, _ in self.sub_blobs])
+        # Use the mean as a reference, then compute toroidal distances
         cx = np.mean(arr[:, 0])
         cy = np.mean(arr[:, 1])
-        dists = np.sqrt((arr[:, 0] - cx) ** 2 + (arr[:, 1] - cy) ** 2) + arr[:, 2]
+        dx = arr[:, 0] - cx
+        dy = arr[:, 1] - cy
+        dx, dy = toroidal_distance(dx, dy, self.width, self.height)
+        dists = np.sqrt(dx ** 2 + dy ** 2) + arr[:, 2]
         max_r = np.max(dists)
+        # Return the center wrapped into the domain
+        cx = np.mod(cx, self.width)
+        cy = np.mod(cy, self.height)
         return (cx, cy, max_r)
-
-    @staticmethod
-    def _spread_subblobs(sub_blobs, min_dist=5):
-        """Spread sub-blobs in a small circle to avoid overlap after merging."""
-        n = len(sub_blobs)
-        if n == 1:
-            return sub_blobs
-        angle_step = 2 * math.pi / n
-        cx = sum(x for x, y, r, c in sub_blobs) / n
-        cy = sum(y for x, y, r, c in sub_blobs) / n
-        spread = []
-        for i, (x, y, r, color) in enumerate(sub_blobs):
-            angle = i * angle_step
-            nx = cx + math.cos(angle) * min_dist
-            ny = cy + math.sin(angle) * min_dist
-            spread.append((nx, ny, r, color))
-        return spread
 
 def color_distance(c1, c2):
     """Euclidean distance between two RGB colors."""
@@ -247,7 +279,22 @@ def any_subblob_collision(blob1, blob2):
     return np.any(dist < min_dist)
 
 def toroidal_distance(dx, dy, width, height):
-    """Return the minimum toroidal (wrapped) distance for dx, dy arrays."""
+    """Return the minimum toroidal (wrapped) distance for dx, dy arrays or scalars."""
     dx = dx - width * np.round(dx / width)
     dy = dy - height * np.round(dy / height)
     return dx, dy
+
+def nonuniform_spread(sub_blobs, min_dist, jitter=2.0):
+    """Spread sub-blobs with random offsets, not just around centroid."""
+    n = len(sub_blobs)
+    if n == 1:
+        return sub_blobs
+    # Place each sub-blob at its original position plus a random offset
+    spread = []
+    for x, y, r, color in sub_blobs:
+        angle = random.uniform(0, 2 * math.pi)
+        dist = min_dist * (0.9 + 0.2 * random.random())
+        nx = x + math.cos(angle) * dist + random.uniform(-jitter, jitter)
+        ny = y + math.sin(angle) * dist + random.uniform(-jitter, jitter)
+        spread.append((nx, ny, r, color))
+    return spread
