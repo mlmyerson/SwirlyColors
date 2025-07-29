@@ -46,8 +46,8 @@ class Blob:
             if np.any(mask):
                 repel = diff[mask] / dist[mask][:, None]
                 repel_sum = np.sum(repel * overlap[mask][:, None], axis=0)
-                dx[i] += repel_sum[0] * 0.01
-                dy[i] += repel_sum[1] * 0.01
+                dx[i] += repel_sum[0] * 0.005
+                dy[i] += repel_sum[1] * 0.005
         # Add random jiggle
         arr[:, 0] += dx + np.random.uniform(-0.1, 0.1, size=len(arr))
         arr[:, 1] += dy + np.random.uniform(-0.1, 0.1, size=len(arr))
@@ -103,7 +103,7 @@ class Blob:
                 other.bonded.add(id(self))
                 new_sub_blobs = new_self_sub_blobs + new_other_sub_blobs
                 max_r = max(r for _, _, r, _ in new_sub_blobs)
-                min_dist = max_r * 2
+                min_dist = max_r * 0.5
                 new_sub_blobs = self._spread_subblobs(new_sub_blobs, min_dist=min_dist)
                 avg_vx = (self.vx + other.vx) / 2
                 avg_vy = (self.vy + other.vy) / 2
