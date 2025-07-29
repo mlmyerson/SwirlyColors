@@ -30,25 +30,13 @@ class Blob:
         self.merge_cooldown = 0
 
     def move(self):
-        """Move all sub-blobs, apply repulsion, and wrap toroidally."""
+        """Move all sub-blobs and wrap toroidally (no repulsion)."""
         if len(self.sub_blobs) == 0:
             return
         arr = np.array([[x, y, r] for x, y, r, _ in self.sub_blobs])
         dx = np.full(len(arr), self.vx)
         dy = np.full(len(arr), self.vy)
-        # Repulsion (O(n^2), but vectorized)
-        for i in range(len(arr)):
-            diff = arr[i, :2] - arr[:, :2]
-            diff[:, 0], diff[:, 1] = toroidal_distance(diff[:, 0], diff[:, 1], self.width, self.height)
-            dist = np.linalg.norm(diff, axis=1)
-            overlap = (arr[i, 2] + arr[:, 2]) - dist
-            mask = (overlap > 0) & (dist > 0)
-            if np.any(mask):
-                repel = diff[mask] / dist[mask][:, None]
-                repel_sum = np.sum(repel * overlap[mask][:, None], axis=0)
-                dx[i] += repel_sum[0] * 0.005
-                dy[i] += repel_sum[1] * 0.005
-        # Add random jiggle
+        # No repulsion: just move and jiggle
         arr[:, 0] += dx + np.random.uniform(-0.1, 0.1, size=len(arr))
         arr[:, 1] += dy + np.random.uniform(-0.1, 0.1, size=len(arr))
         # Toroidal wrapping
@@ -102,9 +90,8 @@ class Blob:
                 self.bonded.add(id(other))
                 other.bonded.add(id(self))
                 new_sub_blobs = new_self_sub_blobs + new_other_sub_blobs
-                max_r = max(r for _, _, r, _ in new_sub_blobs)
-                min_dist = max_r * 0.5
-                new_sub_blobs = self._spread_subblobs(new_sub_blobs, min_dist=min_dist)
+                # Do NOT spread sub-blobs: keep their positions
+                # new_sub_blobs = self._spread_subblobs(new_sub_blobs, min_dist=0)
                 avg_vx = (self.vx + other.vx) / 2
                 avg_vy = (self.vy + other.vy) / 2
                 new_bonded = self.bonded.union(other.bonded)

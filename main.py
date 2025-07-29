@@ -11,7 +11,7 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
 clock = pygame.time.Clock()
 
 # Constants
-NUM_BLOBS = 200
+NUM_BLOBS = 100
 BLOB_RADIUS = 10
 COLOR_SHIFT_STRENGTH = 0.1
 COLOR_SIMILARITY = 1
