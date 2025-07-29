@@ -6,7 +6,7 @@ import numpy as np
 
 # === Tunable Simulation Constants ===
 
-MERGE_COOLDOWN_FRAMES = 1
+MERGE_COOLDOWN_FRAMES = 0
 # Minimum number of frames a merged blob must wait before merging again.
 # Increase to reduce rapid-fire merging (helps at high speeds), decrease for more organic growth.
 
@@ -14,16 +14,16 @@ MAX_SUBBLOBS_PER_BLOB = 50
 # Maximum number of sub-blobs allowed in a single blob before it is split.
 # Lower for better performance and more fragmentation, higher for larger blobs.
 
-SPREAD_EXTRA = 1.15
+SPREAD_EXTRA = 1.05  # Lower than default 1.15
 # Multiplier for minimum separation between sub-blobs after a merge.
 # Increase to reduce immediate overlaps after merging (but may make blobs less cohesive).
 # Decrease for more compact, irregular blobs.
 
-SPREAD_JITTER = 2.0
+SPREAD_JITTER = 3.0
 # Amount of random jitter added to sub-blob positions after merging.
 # Increase for more irregular, organic shapes; decrease for smoother merges.
 
-BASE_REPULSION = 0.008
+BASE_REPULSION = 0.002  # Lower than default 0.008
 # Base strength of repulsion between sub-blobs.
 # Increase to keep blobs from overlapping, decrease for more compact blobs.
 
@@ -35,7 +35,7 @@ MAX_STEP_FRACTION = 0.5
 # Maximum fraction of a sub-blob's radius it can move in a single physics substep.
 # Lower to prevent "teleporting" and tunneling, higher for faster movement.
 
-PHYSICS_SUBSTEPS = 4
+PHYSICS_SUBSTEPS = 1
 # Number of physics substeps per frame.
 # Increase for more stable physics at high speeds, decrease for better performance.
 
