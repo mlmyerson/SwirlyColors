@@ -13,12 +13,12 @@ clock = pygame.time.Clock()
 # Constants
 NUM_BLOBS = 200
 BLOB_RADIUS = 10
-COLOR_SHIFT_STRENGTH = 0.3
+COLOR_SHIFT_STRENGTH = 0.1
 COLOR_SIMILARITY = 1
 GRID_SIZE = 10
-MAX_COLLISIONS_PER_FRAME = 20
+MAX_COLLISIONS_PER_FRAME = 1000
 MERGE_COOLDOWN_FRAMES = 5
-STAGGER_DIV = 2  # Only check every Nth blob per frame (set to 1 for no staggering)
+STAGGER_DIV = 1  # Only check every Nth blob per frame (set to 1 for no staggering)
 
 # Create blobs
 blobs = [Blob(BLOB_RADIUS, WIDTH, HEIGHT) for _ in range(NUM_BLOBS)]

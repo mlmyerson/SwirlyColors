@@ -4,6 +4,9 @@ import pygame
 import math
 import numpy as np
 
+# Constants
+MERGE_COOLDOWN_FRAMES = 1  # Adjust this value to change the merge cooldown duration
+
 class Blob:
     def __init__(self, radius, width, height, sub_blobs=None, vx=None, vy=None, bonded=None):
         self.width = width
@@ -119,7 +122,7 @@ class Blob:
                     vy=avg_vy,
                     bonded=new_bonded
                 )
-                merged_blob.merge_cooldown = 30  # Give time to settle (see next step)
+                merged_blob.merge_cooldown = MERGE_COOLDOWN_FRAMES
                 return merged_blob
             else:
                 # Bounce: reverse velocities for both blobs
