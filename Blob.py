@@ -5,38 +5,17 @@ import math
 
 # === Tunable Simulation Constants ===
 
-MERGE_COOLDOWN_FRAMES = 0
-# Minimum number of frames a merged blob must wait before merging again.
-# Increase to reduce rapid-fire merging (helps at high speeds), decrease for more organic growth.
+SPEED_DAMPING = 0.98
+# Factor to reduce velocity each frame (0.98 = 2% reduction per frame)
+# Lower values = faster slowdown, higher values = slower slowdown
 
-MAX_SUBBLOBS_PER_BLOB = 50
-# Maximum number of sub-blobs allowed in a single blob before it is split.
-# Lower for better performance and more fragmentation, higher for larger blobs.
+MAX_SPEED = 8.0
+# Maximum speed a blob can have before additional damping kicks in
+# Increase for faster maximum speeds, decrease for slower
 
-SPREAD_EXTRA = 1.05  # Lower than default 1.15
-# Multiplier for minimum separation between sub-blobs after a merge.
-# Increase to reduce immediate overlaps after merging (but may make blobs less cohesive).
-# Decrease for more compact, irregular blobs.
-
-SPREAD_JITTER = 3.0
-# Amount of random jitter added to sub-blob positions after merging.
-# Increase for more irregular, organic shapes; decrease for smoother merges.
-
-BASE_REPULSION = 0.002  # Lower than default 0.008
-# Base strength of repulsion between sub-blobs.
-# Increase to keep blobs from overlapping, decrease for more compact blobs.
-
-GRID_CELL_SIZE = 24
-# Size of the spatial grid cells for repulsion and collision checks.
-# Lower for more accurate but slower physics, higher for faster but less accurate.
-
-MAX_STEP_FRACTION = 0.5
-# Maximum fraction of a sub-blob's radius it can move in a single physics substep.
-# Lower to prevent "teleporting" and tunneling, higher for faster movement.
-
-PHYSICS_SUBSTEPS = 1
-# Number of physics substeps per frame.
-# Increase for more stable physics at high speeds, decrease for better performance.
+NORMAL_SPEED = 2.0
+# Target speed that blobs try to maintain
+# This is the typical starting speed range
 
 class Blob:
     """A simple colored ball with position, color, and velocity."""
@@ -59,15 +38,47 @@ class Blob:
             random.randint(50, 255),
             random.randint(50, 255)
         ]
+        
+        # Collision tracking
+        self.collision_memory = {}  # Track recent collisions with other blobs
+        self.collision_decay = 0.9  # How fast collision memory fades
 
     def move(self):
         """Move the blob and wrap around screen edges."""
+        # Apply speed damping
+        current_speed = math.hypot(self.vx, self.vy)
+        
+        if current_speed > MAX_SPEED:
+            # Strong damping for very high speeds
+            damping_factor = SPEED_DAMPING * 0.9  # Extra damping
+        elif current_speed > NORMAL_SPEED:
+            # Normal damping for above-normal speeds
+            damping_factor = SPEED_DAMPING
+        else:
+            # Light damping for low speeds to prevent stopping completely
+            damping_factor = 0.995
+        
+        self.vx *= damping_factor
+        self.vy *= damping_factor
+        
+        # Prevent speeds from getting too low (add tiny random motion)
+        if current_speed < 0.5:
+            self.vx += random.uniform(-0.1, 0.1)
+            self.vy += random.uniform(-0.1, 0.1)
+        
+        # Move
         self.x += self.vx
         self.y += self.vy
         
         # Wrap around screen
         self.x = self.x % self.width
         self.y = self.y % self.height
+        
+        # Decay collision memory
+        for blob_id in list(self.collision_memory.keys()):
+            self.collision_memory[blob_id] *= self.collision_decay
+            if self.collision_memory[blob_id] < 0.1:
+                del self.collision_memory[blob_id]
 
     def draw(self, surface):
         """Draw the blob to the given surface."""
@@ -86,7 +97,7 @@ class Blob:
         return distance < (self.radius + other.radius)
 
     def bounce_off(self, other):
-        """Handle collision with another blob - simple bounce."""
+        """Handle collision with another blob - escalating bounce force."""
         # Calculate collision normal
         dx = self.x - other.x
         dy = self.y - other.y
@@ -103,14 +114,41 @@ class Blob:
         dx /= distance
         dy /= distance
         
-        # Simple velocity swap along collision normal
+        # Track collision intensity
+        other_id = id(other)
+        if other_id not in self.collision_memory:
+            self.collision_memory[other_id] = 1.0
+        else:
+            self.collision_memory[other_id] = min(10.0, self.collision_memory[other_id] + 1.0)
+        
+        # Do the same for the other blob
+        self_id = id(self)
+        if self_id not in other.collision_memory:
+            other.collision_memory[self_id] = 1.0
+        else:
+            other.collision_memory[self_id] = min(10.0, other.collision_memory[self_id] + 1.0)
+        
+        # Calculate bounce intensity based on collision history
+        bounce_multiplier = max(1.0, self.collision_memory[other_id])
+        
+        # Simple velocity swap along collision normal with escalating force
         v1_normal = self.vx * dx + self.vy * dy
         v2_normal = other.vx * dx + other.vy * dy
         
-        self.vx += (v2_normal - v1_normal) * dx
-        self.vy += (v2_normal - v1_normal) * dy
-        other.vx += (v1_normal - v2_normal) * dx
-        other.vy += (v1_normal - v2_normal) * dy
+        force = (v2_normal - v1_normal) * bounce_multiplier
+        self.vx += force * dx
+        self.vy += force * dy
+        
+        force = (v1_normal - v2_normal) * bounce_multiplier
+        other.vx += force * dx
+        other.vy += force * dy
+        
+        # Add separation force to prevent overlap
+        separation_force = bounce_multiplier * 0.5
+        self.vx += dx * separation_force
+        self.vy += dy * separation_force
+        other.vx -= dx * separation_force
+        other.vy -= dy * separation_force
         
         # Add some color mixing on collision
         for i in range(3):
