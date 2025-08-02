@@ -9,15 +9,15 @@ SPEED_DAMPING = 0.98
 # Factor to reduce velocity each frame (0.98 = 2% reduction per frame)
 # Lower values = faster slowdown, higher values = slower slowdown
 
-MAX_SPEED = 8.0
+MAX_SPEED = 12.0
 # Maximum speed a blob can have before additional damping kicks in
 # Increase for faster maximum speeds, decrease for slower
 
-NORMAL_SPEED = 4.0
+NORMAL_SPEED = 6.0
 # Target speed that blobs try to maintain
 # This is the typical starting speed range
 
-MINIMUM_SPEED = 2.0
+MINIMUM_SPEED = 3.0
 
 TARGET_SEARCH_CHANCE = 0.01
 # Probability per frame that a blob will search for a target (1% = infrequent searching)
@@ -245,6 +245,25 @@ class Blob:
             
             # Add some color mixing on collision (only for bouncing blobs)
             for i in range(3):
-                avg = (self.color[i] + other.color[i]) // 2
-                self.color[i] = min(255, max(0, avg + random.randint(-20, 20)))
-                other.color[i] = min(255, max(0, avg + random.randint(-20, 20)))
+                # Instead of averaging colors, make them bounce apart
+                diff = self.color[i] - other.color[i]
+                
+                # Add random variation to the bounce
+                bounce_strength = random.randint(10, 30)
+                
+                if diff > 0:
+                    # self has higher value, push it higher and other lower
+                    self.color[i] = (self.color[i] + bounce_strength) % 256
+                    other.color[i] = (other.color[i] - bounce_strength) % 256
+                elif diff < 0:
+                    # other has higher value, push it higher and self lower
+                    self.color[i] = (self.color[i] - bounce_strength) % 256
+                    other.color[i] = (other.color[i] + bounce_strength) % 256
+                else:
+                    # Colors are the same, push them in random directions
+                    if random.choice([True, False]):
+                        self.color[i] = (self.color[i] + bounce_strength) % 256
+                        other.color[i] = (other.color[i] - bounce_strength) % 256
+                    else:
+                        self.color[i] = (self.color[i] - bounce_strength) % 256
+                        other.color[i] = (other.color[i] + bounce_strength) % 256
