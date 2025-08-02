@@ -31,6 +31,10 @@ VELOCITY_KICK_STRENGTH = 0.5
 # How strong the velocity kick towards target is
 # Increase for stronger attraction, decrease for gentler movement
 
+FLOCK_COLOR_THRESHOLD = 50
+# Color distance threshold for flocking behavior (should be lower than COLOR_ATTRACTION_THRESHOLD)
+# Blobs closer than this in color will move as one unit instead of bouncing
+
 class Blob:
     """A simple colored ball with position, color, and velocity."""
     def __init__(self, radius, width, height, x=None, y=None, vx=None, vy=None, color=None):
@@ -159,7 +163,7 @@ class Blob:
         return distance < (self.radius + other.radius)
 
     def bounce_off(self, other):
-        """Handle collision with another blob - escalating bounce force."""
+        """Handle collision with another blob - escalating bounce force or flocking."""
         # Calculate collision normal
         dx = self.x - other.x
         dy = self.y - other.y
@@ -172,48 +176,75 @@ class Blob:
         if distance == 0:
             return
             
-        # Normalize
-        dx /= distance
-        dy /= distance
+        # Check if colors are similar enough for flocking
+        color_distance = sum((self.color[i] - other.color[i]) ** 2 for i in range(3)) ** 0.5
         
-        # Track collision intensity
-        other_id = id(other)
-        if other_id not in self.collision_memory:
-            self.collision_memory[other_id] = 1.0
+        if color_distance < FLOCK_COLOR_THRESHOLD:
+            # FLOCKING BEHAVIOR: Move as one unit
+            # Average the velocities so they move together
+            avg_vx = (self.vx + other.vx) / 2
+            avg_vy = (self.vy + other.vy) / 2
+            
+            self.vx = avg_vx
+            self.vy = avg_vy
+            other.vx = avg_vx
+            other.vy = avg_vy
+            
+            # No color change for flocking blobs
+            # They maintain their similar colors
+            
+            # Reset collision memory since they're now moving together
+            other_id = id(other)
+            self_id = id(self)
+            if other_id in self.collision_memory:
+                del self.collision_memory[other_id]
+            if self_id in other.collision_memory:
+                del other.collision_memory[self_id]
+                
         else:
-            self.collision_memory[other_id] = min(10.0, self.collision_memory[other_id] + 1.0)
-        
-        # Do the same for the other blob
-        self_id = id(self)
-        if self_id not in other.collision_memory:
-            other.collision_memory[self_id] = 1.0
-        else:
-            other.collision_memory[self_id] = min(10.0, other.collision_memory[self_id] + 1.0)
-        
-        # Calculate bounce intensity based on collision history
-        bounce_multiplier = max(1.0, self.collision_memory[other_id])
-        
-        # Simple velocity swap along collision normal with escalating force
-        v1_normal = self.vx * dx + self.vy * dy
-        v2_normal = other.vx * dx + other.vy * dy
-        
-        force = (v2_normal - v1_normal) * bounce_multiplier
-        self.vx += force * dx
-        self.vy += force * dy
-        
-        force = (v1_normal - v2_normal) * bounce_multiplier
-        other.vx += force * dx
-        other.vy += force * dy
-        
-        # Add separation force to prevent overlap
-        separation_force = bounce_multiplier * 0.5
-        self.vx += dx * separation_force
-        self.vy += dy * separation_force
-        other.vx -= dx * separation_force
-        other.vy -= dy * separation_force
-        
-        # Add some color mixing on collision
-        for i in range(3):
-            avg = (self.color[i] + other.color[i]) // 2
-            self.color[i] = min(255, max(0, avg + random.randint(-20, 20)))
-            other.color[i] = min(255, max(0, avg + random.randint(-20, 20)))
+            # NORMAL BOUNCING BEHAVIOR: Different colors bounce off each other
+            # Normalize
+            dx /= distance
+            dy /= distance
+            
+            # Track collision intensity
+            other_id = id(other)
+            if other_id not in self.collision_memory:
+                self.collision_memory[other_id] = 1.0
+            else:
+                self.collision_memory[other_id] = min(10.0, self.collision_memory[other_id] + 1.0)
+            
+            # Do the same for the other blob
+            self_id = id(self)
+            if self_id not in other.collision_memory:
+                other.collision_memory[self_id] = 1.0
+            else:
+                other.collision_memory[self_id] = min(10.0, other.collision_memory[self_id] + 1.0)
+            
+            # Calculate bounce intensity based on collision history
+            bounce_multiplier = max(1.0, self.collision_memory[other_id])
+            
+            # Simple velocity swap along collision normal with escalating force
+            v1_normal = self.vx * dx + self.vy * dy
+            v2_normal = other.vx * dx + other.vy * dy
+            
+            force = (v2_normal - v1_normal) * bounce_multiplier
+            self.vx += force * dx
+            self.vy += force * dy
+            
+            force = (v1_normal - v2_normal) * bounce_multiplier
+            other.vx += force * dx
+            other.vy += force * dy
+            
+            # Add separation force to prevent overlap
+            separation_force = bounce_multiplier * 0.5
+            self.vx += dx * separation_force
+            self.vy += dy * separation_force
+            other.vx -= dx * separation_force
+            other.vy -= dy * separation_force
+            
+            # Add some color mixing on collision (only for bouncing blobs)
+            for i in range(3):
+                avg = (self.color[i] + other.color[i]) // 2
+                self.color[i] = min(255, max(0, avg + random.randint(-20, 20)))
+                other.color[i] = min(255, max(0, avg + random.randint(-20, 20)))
