@@ -13,9 +13,23 @@ MAX_SPEED = 8.0
 # Maximum speed a blob can have before additional damping kicks in
 # Increase for faster maximum speeds, decrease for slower
 
-NORMAL_SPEED = 2.0
+NORMAL_SPEED = 4.0
 # Target speed that blobs try to maintain
 # This is the typical starting speed range
+
+MINIMUM_SPEED = 2.0
+
+TARGET_SEARCH_CHANCE = 0.01
+# Probability per frame that a blob will search for a target (1% = infrequent searching)
+# Lower = less frequent targeting, higher = more frequent targeting
+
+COLOR_ATTRACTION_THRESHOLD = 100
+# Maximum color distance for attraction (lower = more selective)
+# Decrease for stricter color matching, increase for looser matching
+
+VELOCITY_KICK_STRENGTH = 0.5
+# How strong the velocity kick towards target is
+# Increase for stronger attraction, decrease for gentler movement
 
 class Blob:
     """A simple colored ball with position, color, and velocity."""
@@ -43,8 +57,54 @@ class Blob:
         self.collision_memory = {}  # Track recent collisions with other blobs
         self.collision_decay = 0.9  # How fast collision memory fades
 
+    def search_for_target(self, all_blobs):
+        """Search for the closest blob with a preferential color match."""
+        # Only search occasionally to avoid constant targeting
+        if random.random() > TARGET_SEARCH_CHANCE:
+            return
+        
+        # Shuffle the blob list to get random iteration order
+        blob_candidates = list(all_blobs)
+        random.shuffle(blob_candidates)
+        
+        for target_blob in blob_candidates:
+            # Don't target yourself
+            if target_blob is self:
+                continue
+                
+            # Check if this blob is a preferential match
+            if self.is_preferential_match(target_blob):
+                # Calculate direction to target (with toroidal wrapping)
+                dx = target_blob.x - self.x
+                dy = target_blob.y - self.y
+                
+                # Handle toroidal wrapping
+                dx = dx - self.width * round(dx / self.width)
+                dy = dy - self.height * round(dy / self.height)
+                
+                distance = math.hypot(dx, dy)
+                if distance > 0:
+                    # Normalize direction and apply velocity kick
+                    dx /= distance
+                    dy /= distance
+                    
+                    self.vx += dx * VELOCITY_KICK_STRENGTH
+                    self.vy += dy * VELOCITY_KICK_STRENGTH
+                
+                # Found a target, stop searching
+                break
+
+    def is_preferential_match(self, other):
+        """Determine if another blob is a preferential match."""
+        # Simple color similarity check
+        color_distance = sum((self.color[i] - other.color[i]) ** 2 for i in range(3)) ** 0.5
+        
+        # Prefer blobs with similar colors
+        return color_distance < COLOR_ATTRACTION_THRESHOLD
+
     def move(self):
         """Move the blob and wrap around screen edges."""
+    
         # Apply speed damping
         current_speed = math.hypot(self.vx, self.vy)
         
@@ -62,7 +122,7 @@ class Blob:
         self.vy *= damping_factor
         
         # Prevent speeds from getting too low (add tiny random motion)
-        if current_speed < 0.5:
+        if current_speed < MINIMUM_SPEED:
             self.vx += random.uniform(-0.1, 0.1)
             self.vy += random.uniform(-0.1, 0.1)
         
@@ -75,6 +135,8 @@ class Blob:
         self.y = self.y % self.height
         
         # Decay collision memory
+            # Blobs that keep colliding bounce off each other more strongly
+            # This makes it so that blobs will eventually bounce normally again after some time
         for blob_id in list(self.collision_memory.keys()):
             self.collision_memory[blob_id] *= self.collision_decay
             if self.collision_memory[blob_id] < 0.1:
