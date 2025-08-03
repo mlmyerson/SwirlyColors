@@ -9,7 +9,7 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
 clock = pygame.time.Clock()
 
 # Simple constants
-NUM_BLOBS = 50
+NUM_BLOBS = 20
 BLOB_RADIUS = 15
 
 # Create blobs
