@@ -9,11 +9,11 @@ SPEED_DAMPING = 0.98
 # Factor to reduce velocity each frame (0.98 = 2% reduction per frame)
 # Lower values = faster slowdown, higher values = slower slowdown
 
-MAX_SPEED = 4.0
+MAX_SPEED = 2.0
 # Maximum speed a blob can have before additional damping kicks in
 # Increase for faster maximum speeds, decrease for slower
 
-NORMAL_SPEED = 1.0
+NORMAL_SPEED = 0.5
 # Target speed that blobs try to maintain
 # This is the typical starting speed range
 
@@ -29,17 +29,16 @@ TARGET_SEARCH_CHANCE = 1.01
 # Probability per frame that a blob will search for a target (1% = infrequent searching)
 # Lower = less frequent targeting, higher = more frequent targeting
 
-COLOR_ATTRACTION_THRESHOLD = 100
-# Maximum color distance for attraction (lower = more selective)
-# Decrease for stricter color matching, increase for looser matching
+FLOCK_COLOR_THRESHOLD = 50
+# Color distance threshold for flocking behavior
+# Blobs closer than this in color will move as one unit instead of bouncing
+# Also is themaximum color distance for attraction
+# This ensures that blobs that are attracted to each other will flock when they meet
+# Rather than bounce and diverge colors
 
-VELOCITY_KICK_STRENGTH = 0.5
+VELOCITY_KICK_STRENGTH = 0.1
 # How strong the velocity kick towards target is
 # Increase for stronger attraction, decrease for gentler movement
-
-FLOCK_COLOR_THRESHOLD = 50
-# Color distance threshold for flocking behavior (should be lower than COLOR_ATTRACTION_THRESHOLD)
-# Blobs closer than this in color will move as one unit instead of bouncing
 
 class Blob:
     """A simple colored ball with position, color, and velocity."""
@@ -110,7 +109,7 @@ class Blob:
         color_distance = sum((self.color[i] - other.color[i]) ** 2 for i in range(3)) ** 0.5
         
         # Prefer blobs with similar colors
-        return color_distance < COLOR_ATTRACTION_THRESHOLD
+        return color_distance < FLOCK_COLOR_THRESHOLD
 
     def move(self):
         """Move the blob and wrap around screen edges."""
