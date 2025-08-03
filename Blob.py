@@ -1,11 +1,11 @@
 # Blob class for position, color, and velocity
 import random
-import pygame
 import math
 from Config import config
 
 class Blob:
     """A simple colored ball with position, color, and velocity."""
+    
     def __init__(self, radius, window_width, window_height, x=None, y=None, vx=None, vy=None, color=None):
         self.window_width = window_width
         self.window_height = window_height
@@ -102,10 +102,6 @@ class Blob:
             self.collision_memory[blob_id] *= self.collision_decay
             if self.collision_memory[blob_id] < 0.1:
                 del self.collision_memory[blob_id]
-
-    def draw(self, surface):
-        """Draw the blob to the given surface."""
-        pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), int(self.radius))
 
     def collides_with(self, other):
         if not self.is_preferential_match(other):
