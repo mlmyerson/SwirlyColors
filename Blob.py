@@ -4,43 +4,6 @@ import pygame
 import math
 from Config import config
 
-# === Tunable Simulation Constants ===
-
-SPEED_DAMPING = 0.98
-# Factor to reduce velocity each frame (0.98 = 2% reduction per frame)
-# Lower values = faster slowdown, higher values = slower slowdown
-
-MAX_SPEED = 2.0
-# Maximum speed a blob can have before additional damping kicks in
-# Increase for faster maximum speeds, decrease for slower
-
-NORMAL_SPEED = 0.5
-# Target speed that blobs try to maintain
-# This is the typical starting speed range
-
-
-MINIMUM_COLOR = 100
-MAXIMUM_COLOR = 200
-
-# Track recent collisions with other blobs
-# Blobs that collide a lot will bounce off each other more strongly
-COLLISION_MEMORY_DECAY = 0.9
-
-TARGET_SEARCH_CHANCE = 1.01
-# Probability per frame that a blob will search for a target (1% = infrequent searching)
-# Lower = less frequent targeting, higher = more frequent targeting
-
-FLOCK_COLOR_THRESHOLD = 50
-# Color distance threshold for flocking behavior
-# Blobs closer than this in color will move as one unit instead of bouncing
-# Also is themaximum color distance for attraction
-# This ensures that blobs that are attracted to each other will flock when they meet
-# Rather than bounce and diverge colors
-
-VELOCITY_KICK_STRENGTH = 0.1
-# How strong the velocity kick towards target is
-# Increase for stronger attraction, decrease for gentler movement
-
 class Blob:
     """A simple colored ball with position, color, and velocity."""
     def __init__(self, radius, window_width, window_height, x=None, y=None, vx=None, vy=None, color=None):
@@ -98,8 +61,8 @@ class Blob:
                     dx /= distance
                     dy /= distance
                     
-                    self.vx += dx * VELOCITY_KICK_STRENGTH
-                    self.vy += dy * VELOCITY_KICK_STRENGTH
+                    self.vx += dx * config.VELOCITY_KICK_STRENGTH
+                    self.vy += dy * config.VELOCITY_KICK_STRENGTH
                 
                 # Found a target, stop searching
                 break
@@ -114,7 +77,6 @@ class Blob:
 
     def move(self):
         """Move the blob and wrap around screen edges."""
-    
         current_speed = math.hypot(self.vx, self.vy)
         if current_speed > config.MAX_SPEED:
             # Apply speed damping
@@ -134,8 +96,8 @@ class Blob:
         self.y = self.y % self.window_height
         
         # Decay collision memory
-            # Blobs that keep colliding bounce off each other more strongly
-            # This makes it so that blobs will eventually bounce normally again after some time
+        # Blobs that keep colliding bounce off each other more strongly
+        # This makes it so that blobs will eventually bounce normally again after some time
         for blob_id in list(self.collision_memory.keys()):
             self.collision_memory[blob_id] *= self.collision_decay
             if self.collision_memory[blob_id] < 0.1:
