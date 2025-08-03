@@ -18,12 +18,8 @@ class Display:
         self.width = width
         self.height = height
         
-        # Set up display based on config
-        if config.FULLSCREEN:
-            self.screen = pygame.display.set_mode((width, height), pygame.FULLSCREEN)
-        else:
-            self.screen = pygame.display.set_mode((width, height))
-        
+        # Create windowed display
+        self.screen = pygame.display.set_mode((width, height))
         pygame.display.set_caption("SwirlyColors Simulation")
         self.clock = pygame.time.Clock()
     

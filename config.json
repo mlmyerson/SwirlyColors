@@ -3,7 +3,6 @@
         "num_blobs": 20,
         "blob_radius": 15,
         "fps": 60,
-        "fullscreen": true,
         "log_interval_frames": 60,
         "max_frames": 0,
         "enable_display": true,
