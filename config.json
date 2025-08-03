@@ -5,7 +5,7 @@
         "fps": 60,
         "log_interval_frames": 60,
         "max_frames": 0,
-        "enable_display": true,
+        "enable_display": false,
         "width": 1920,
         "height": 1080
     },
@@ -24,7 +24,7 @@
     },
     "behavior": {
         "collision_memory_decay": 0.9,
-        "target_search_chance": 1.01,
+        "target_search_chance": 0.01,
         "flock_color_threshold": 50
     }
 }
