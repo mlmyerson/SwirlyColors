@@ -9,7 +9,7 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
 clock = pygame.time.Clock()
 
 # Simple constants
-NUM_BLOBS = 50
+NUM_BLOBS = 20
 BLOB_RADIUS = 15
 
 # Create blobs
@@ -30,7 +30,7 @@ while running:
     
     # Move blobs
     for blob in blobs:
-        blob.search_for_target(blobs)  # Pass the full blob list
+        blob.search_for_target(blobs)  
         blob.move()
     
     # Check collisions
