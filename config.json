@@ -1,0 +1,27 @@
+{
+    "simulation": {
+        "num_blobs": 20,
+        "blob_radius": 15,
+        "fps": 60,
+        "fullscreen": true,
+        "log_interval_frames": 60
+    },
+    "display": {
+        "background_color": [20, 20, 30]
+    },
+    "physics": {
+        "speed_damping": 0.98,
+        "max_speed": 2.0,
+        "normal_speed": 0.5,
+        "velocity_kick_strength": 0.1
+    },
+    "appearance": {
+        "minimum_color": 100,
+        "maximum_color": 200
+    },
+    "behavior": {
+        "collision_memory_decay": 0.9,
+        "target_search_chance": 1.01,
+        "flock_color_threshold": 50
+    }
+}
