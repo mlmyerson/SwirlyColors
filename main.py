@@ -30,7 +30,7 @@ while running:
     
     # Move blobs
     for blob in blobs:
-        blob.search_for_target(blobs)  # Pass the full blob list
+        blob.search_for_target(blobs)  
         blob.move()
     
     # Check collisions
