@@ -4,7 +4,11 @@
         "blob_radius": 15,
         "fps": 60,
         "fullscreen": true,
-        "log_interval_frames": 60
+        "log_interval_frames": 60,
+        "max_frames": 0,
+        "enable_display": true,
+        "width": 1920,
+        "height": 1080
     },
     "display": {
         "background_color": [20, 20, 30]
