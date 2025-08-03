@@ -18,8 +18,8 @@ NORMAL_SPEED = 0.5
 # This is the typical starting speed range
 
 
-MINIMUM_COLOR = 0
-MAXIMUM_COLOR = 255
+MINIMUM_COLOR = 100
+MAXIMUM_COLOR = 200
 
 # Track recent collisions with other blobs
 # Blobs that collide a lot will bounce off each other more strongly
@@ -251,17 +251,17 @@ class Blob:
             
             if diff > 0:
                 # self has higher value, push it higher and other lower
-                self.color[i] = (self.color[i] + bounce_strength) % 256
-                other.color[i] = (other.color[i] - bounce_strength) % 256
+                self.color[i] = max(MINIMUM_COLOR, min(MAXIMUM_COLOR, self.color[i] + bounce_strength))
+                other.color[i] = max(MINIMUM_COLOR, min(MAXIMUM_COLOR, other.color[i] - bounce_strength))
             elif diff < 0:
                 # other has higher value, push it higher and self lower
-                self.color[i] = (self.color[i] - bounce_strength) % 256
-                other.color[i] = (other.color[i] + bounce_strength) % 256
+                self.color[i] = max(MINIMUM_COLOR, min(MAXIMUM_COLOR, self.color[i] - bounce_strength))
+                other.color[i] = max(MINIMUM_COLOR, min(MAXIMUM_COLOR, other.color[i] + bounce_strength))
             else:
                 # Colors are the same, push them in random directions
                 if random.choice([True, False]):
-                    self.color[i] = (self.color[i] + bounce_strength) % 256
-                    other.color[i] = (other.color[i] - bounce_strength) % 256
+                    self.color[i] = max(MINIMUM_COLOR, min(MAXIMUM_COLOR, self.color[i] + bounce_strength))
+                    other.color[i] = max(MINIMUM_COLOR, min(MAXIMUM_COLOR, other.color[i] - bounce_strength))
                 else:
-                    self.color[i] = (self.color[i] - bounce_strength) % 256
-                    other.color[i] = (other.color[i] + bounce_strength) % 256
+                    self.color[i] = max(MINIMUM_COLOR, min(MAXIMUM_COLOR, self.color[i] - bounce_strength))
+                    other.color[i] = max(MINIMUM_COLOR, min(MAXIMUM_COLOR, other.color[i] + bounce_strength))
