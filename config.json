@@ -3,7 +3,8 @@
         "num_blobs": 20,
         "blob_radius": 15,
         "fps": 60,
-        "fullscreen": true
+        "fullscreen": true,
+        "log_interval_frames": 60
     },
     "display": {
         "background_color": [20, 20, 30]

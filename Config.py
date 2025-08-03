@@ -35,7 +35,8 @@ class Config:
                 "num_blobs": 20,
                 "blob_radius": 15,
                 "fps": 60,
-                "fullscreen": True
+                "fullscreen": True,
+                "log_interval_frames": 60  
             },
             "display": {
                 "background_color": [20, 20, 30]
@@ -64,6 +65,7 @@ class Config:
         self.BLOB_RADIUS = config_data.get("simulation", {}).get("blob_radius", 15)
         self.FPS = config_data.get("simulation", {}).get("fps", 60)
         self.FULLSCREEN = config_data.get("simulation", {}).get("fullscreen", True)
+        self.LOG_INTERVAL_FRAMES = config_data.get("simulation", {}).get("log_interval_frames", 60)
         
         # Display constants
         bg_color = config_data.get("display", {}).get("background_color", [20, 20, 30])
