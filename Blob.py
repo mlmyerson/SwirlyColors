@@ -2,6 +2,7 @@
 import random
 import pygame
 import math
+from Config import config
 
 # === Tunable Simulation Constants ===
 
@@ -52,24 +53,24 @@ class Blob:
         self.y = random.uniform(radius, window_height - radius)
         
         # Velocity
-        self.vx = random.uniform(-NORMAL_SPEED, NORMAL_SPEED)
-        self.vy = random.uniform(-NORMAL_SPEED, NORMAL_SPEED)
+        self.vx = random.uniform(-config.NORMAL_SPEED, config.NORMAL_SPEED)
+        self.vy = random.uniform(-config.NORMAL_SPEED, config.NORMAL_SPEED)
         
         # Color
         self.color = [
-            random.randint(MINIMUM_COLOR, MAXIMUM_COLOR),
-            random.randint(MINIMUM_COLOR, MAXIMUM_COLOR),
-            random.randint(MINIMUM_COLOR, MAXIMUM_COLOR)
+            random.randint(config.MINIMUM_COLOR, config.MAXIMUM_COLOR),
+            random.randint(config.MINIMUM_COLOR, config.MAXIMUM_COLOR),
+            random.randint(config.MINIMUM_COLOR, config.MAXIMUM_COLOR)
         ]
         
         # Collision tracking
         self.collision_memory = {}  
-        self.collision_decay = COLLISION_MEMORY_DECAY
+        self.collision_decay = config.COLLISION_MEMORY_DECAY
 
     def search_for_target(self, all_blobs):
         """Search for the closest blob with a preferential color match."""
         # Only search occasionally to avoid constant targeting
-        if random.random() > TARGET_SEARCH_CHANCE:
+        if random.random() > config.TARGET_SEARCH_CHANCE:
             return
         
         # Shuffle the blob list to get random iteration order
@@ -109,20 +110,20 @@ class Blob:
         color_distance = sum((self.color[i] - other.color[i]) ** 2 for i in range(3)) ** 0.5
         
         # Prefer blobs with similar colors
-        return color_distance < FLOCK_COLOR_THRESHOLD
+        return color_distance < config.FLOCK_COLOR_THRESHOLD
 
     def move(self):
         """Move the blob and wrap around screen edges."""
     
         current_speed = math.hypot(self.vx, self.vy)
-        if current_speed > MAX_SPEED:
+        if current_speed > config.MAX_SPEED:
             # Apply speed damping
-            self.vx *= SPEED_DAMPING
-            self.vy *= SPEED_DAMPING
-        elif current_speed < NORMAL_SPEED:
+            self.vx *= config.SPEED_DAMPING
+            self.vy *= config.SPEED_DAMPING
+        elif current_speed < config.NORMAL_SPEED:
             # Apply normal speed to maintain typical movement
-            self.vx += NORMAL_SPEED
-            self.vy += NORMAL_SPEED
+            self.vx += config.NORMAL_SPEED
+            self.vy += config.NORMAL_SPEED
         
         # Move
         self.x += self.vx
@@ -174,7 +175,7 @@ class Blob:
         # Check if colors are similar enough for flocking
         color_distance = sum((self.color[i] - other.color[i]) ** 2 for i in range(3)) ** 0.5
         
-        if color_distance < FLOCK_COLOR_THRESHOLD:
+        if color_distance < config.FLOCK_COLOR_THRESHOLD:
             # FLOCKING BEHAVIOR: Move as one unit
             # Average the velocities so they move together
             avg_vx = (self.vx + other.vx) / 2
@@ -251,17 +252,17 @@ class Blob:
             
             if diff > 0:
                 # self has higher value, push it higher and other lower
-                self.color[i] = max(MINIMUM_COLOR, min(MAXIMUM_COLOR, self.color[i] + bounce_strength))
-                other.color[i] = max(MINIMUM_COLOR, min(MAXIMUM_COLOR, other.color[i] - bounce_strength))
+                self.color[i] = max(config.MINIMUM_COLOR, min(config.MAXIMUM_COLOR, self.color[i] + bounce_strength))
+                other.color[i] = max(config.MINIMUM_COLOR, min(config.MAXIMUM_COLOR, other.color[i] - bounce_strength))
             elif diff < 0:
                 # other has higher value, push it higher and self lower
-                self.color[i] = max(MINIMUM_COLOR, min(MAXIMUM_COLOR, self.color[i] - bounce_strength))
-                other.color[i] = max(MINIMUM_COLOR, min(MAXIMUM_COLOR, other.color[i] + bounce_strength))
+                self.color[i] = max(config.MINIMUM_COLOR, min(config.MAXIMUM_COLOR, self.color[i] - bounce_strength))
+                other.color[i] = max(config.MINIMUM_COLOR, min(config.MAXIMUM_COLOR, other.color[i] + bounce_strength))
             else:
                 # Colors are the same, push them in random directions
                 if random.choice([True, False]):
-                    self.color[i] = max(MINIMUM_COLOR, min(MAXIMUM_COLOR, self.color[i] + bounce_strength))
-                    other.color[i] = max(MINIMUM_COLOR, min(MAXIMUM_COLOR, other.color[i] - bounce_strength))
+                    self.color[i] = max(config.MINIMUM_COLOR, min(config.MAXIMUM_COLOR, self.color[i] + bounce_strength))
+                    other.color[i] = max(config.MINIMUM_COLOR, min(config.MAXIMUM_COLOR, other.color[i] - bounce_strength))
                 else:
-                    self.color[i] = max(MINIMUM_COLOR, min(MAXIMUM_COLOR, self.color[i] - bounce_strength))
-                    other.color[i] = max(MINIMUM_COLOR, min(MAXIMUM_COLOR, other.color[i] + bounce_strength))
+                    self.color[i] = max(config.MINIMUM_COLOR, min(config.MAXIMUM_COLOR, self.color[i] - bounce_strength))
+                    other.color[i] = max(config.MINIMUM_COLOR, min(config.MAXIMUM_COLOR, other.color[i] + bounce_strength))

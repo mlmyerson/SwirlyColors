@@ -1,19 +1,24 @@
 import pygame
-import random
 from Blob import Blob
+from Config import config
 
+# Initialize pygame
 pygame.init()
+
+# Get screen dimensions
 info = pygame.display.Info()
 WIDTH, HEIGHT = info.current_w, info.current_h
-screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
+
+# Set up display based on config
+if config.FULLSCREEN:
+    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
+else:
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+
 clock = pygame.time.Clock()
 
-# Simple constants
-NUM_BLOBS = 20
-BLOB_RADIUS = 15
-
-# Create blobs
-blobs = [Blob(BLOB_RADIUS, WIDTH, HEIGHT) for _ in range(NUM_BLOBS)]
+# Create blobs using config values
+blobs = [Blob(config.BLOB_RADIUS, WIDTH, HEIGHT) for _ in range(config.NUM_BLOBS)]
 
 running = True
 while running:
@@ -25,8 +30,8 @@ while running:
             if event.key == pygame.K_ESCAPE:
                 running = False
     
-    # Clear screen
-    screen.fill((20, 20, 30))
+    # Clear screen with config background color
+    screen.fill(config.BACKGROUND_COLOR)
     
     # Move blobs
     for blob in blobs:
@@ -45,6 +50,6 @@ while running:
         blob.draw(screen)
     
     pygame.display.flip()
-    clock.tick(60)
+    clock.tick(config.FPS)
 
 pygame.quit()
